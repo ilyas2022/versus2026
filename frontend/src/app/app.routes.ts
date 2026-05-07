@@ -53,6 +53,10 @@ export const routes: Routes = [
         path: 'result',
         loadComponent: () => import('./features/player/pages/result/result').then(m => m.Result),
       },
+      {
+        path: 'practice',
+        loadComponent: () => import('./features/practice/pages/practice/practice').then(m => m.Practice),
+      },
       { path: '', redirectTo: 'select', pathMatch: 'full' },
     ],
   },

@@ -128,12 +128,12 @@ Preguntas binarias y numéricas que alimentan los modos de juego.
  
 ### Endpoints
  
-| Método | Ruta | Descripción | Issues |
-|--------|------|-------------|--------|
-| `GET` | `/api/questions/random` | Pregunta aleatoria (opcionalmente por categoría o tipo) | #42 |
-| `GET` | `/api/questions/random?type=BINARY&category=football` | Filtros opcionales | #42, #43 |
-| `GET` | `/api/questions/:id` | Pregunta por ID | #41 |
-| `GET` | `/api/questions/categories` | Lista de categorías disponibles | #43 |
+| Método | Ruta | Auth | Descripción | Issues |
+|--------|------|------|-------------|--------|
+| `GET` | `/api/questions/random` | No (público) | Pregunta aleatoria (opcionalmente por categoría o tipo) | #42 |
+| `GET` | `/api/questions/random?type=BINARY&category=football` | No (público) | Filtros opcionales | #42, #43 |
+| `GET` | `/api/questions/:id` | Sí (JWT) | Pregunta por ID | #41 |
+| `GET` | `/api/questions/categories` | No (público) | Lista de categorías disponibles | #43 |
  
 ### Contrato de pregunta BINARY
  
@@ -413,6 +413,69 @@ Gestión de preguntas reportadas y administración de la plataforma.
 | `PUT` | `/api/admin/users/:id/role` | Cambiar rol de usuario | #82 |
 | `DELETE` | `/api/admin/users/:id` | Eliminar usuario | #82 |
 | `PUT` | `/api/admin/questions/:id/status` | Activar/desactivar pregunta | #82 |
+ 
+---
+ 
+## 🎓 Módulo 9 — PRÁCTICA (Modo libre)
+ 
+Modo sin presión para explorar el banco de preguntas y aprender sin consecuencias. No crea partida ni actualiza stats.
+ 
+### Características
+ 
+- Sin sesión de partida — sin `sessionId`
+- La respuesta correcta siempre se revela tras contestar
+- Muestra `explanation` si la pregunta la tiene
+- Contadores de sesión en cliente (racha, precisión media), sin persistir
+- Accesible sin autenticación a nivel de API (el frontend lo mantiene bajo `authGuard`)
+ 
+### Endpoints
+ 
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/practice/answer` | No (público) | Evalúa respuesta y devuelve la correcta + explicación |
+ 
+**Request BINARY:**
+```json
+{
+  "questionId": "uuid-pregunta",
+  "optionId": "uuid-opcion-elegida"
+}
+```
+ 
+**Request NUMERIC:**
+```json
+{
+  "questionId": "uuid-pregunta",
+  "value": 650000000
+}
+```
+ 
+**Response:**
+```json
+{
+  "correct": true,
+  "correctOptionId": "uuid-opcion-correcta",
+  "correctValue": null,
+  "deviationPercent": null,
+  "unit": null,
+  "explanation": "Texto explicativo (null si no existe)"
+}
+```
+ 
+> Los campos `null` se omiten en el JSON. Para BINARY solo aparecen `correct`, `correctOptionId` y `explanation`. Para NUMERIC aparecen `correct`, `correctValue`, `deviationPercent`, `unit` y `explanation`.
+ 
+### Ruta frontend
+ 
+`/play/practice` — bajo `authGuard`. El selector de modos incluye una carta "PRÁCTICA" con color `--vs-accent-green`.  
+Usa `QuestionService.random(type?, category?)` y `QuestionService.categories()` existentes.
+ 
+### Fórmula de evaluación NUMERIC
+ 
+Idéntica a Modo Precisión:
+```
+deviationPercent = |value - correctValue| / |correctValue| * 100
+correct          = deviationPercent ≤ tolerancePercent (default 5%)
+```
  
 ---
  

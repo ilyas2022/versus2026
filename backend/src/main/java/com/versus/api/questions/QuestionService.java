@@ -48,6 +48,13 @@ public class QuestionService {
     }
 
     @Transactional(readOnly = true)
+    public Question findActiveQuestion(UUID id) {
+        return questions.findById(id)
+                .filter(q -> q.getStatus() == QuestionStatus.ACTIVE)
+                .orElseThrow(() -> ApiException.notFound("Question not found"));
+    }
+
+    @Transactional(readOnly = true)
     public Question findActiveQuestion(UUID id, QuestionType expectedType) {
         Question question = questions.findById(id)
                 .filter(q -> q.getStatus() == QuestionStatus.ACTIVE)
