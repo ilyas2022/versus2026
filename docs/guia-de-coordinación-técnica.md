@@ -407,12 +407,15 @@ Gestión de preguntas reportadas y administración de la plataforma.
  
 ### Endpoints de administración
  
+Todos requieren rol `ADMIN`. Protegidos con `@PreAuthorize("hasRole('ADMIN')")` y matcher de ruta.
+ 
 | Método | Ruta | Descripción | Issues |
 |--------|------|-------------|--------|
-| `GET` | `/api/admin/users` | Lista de usuarios | #82 |
-| `PUT` | `/api/admin/users/:id/role` | Cambiar rol de usuario | #82 |
-| `DELETE` | `/api/admin/users/:id` | Eliminar usuario | #82 |
-| `PUT` | `/api/admin/questions/:id/status` | Activar/desactivar pregunta | #82 |
+| `GET` | `/api/admin/users?page=0&size=20&search=&role=&active=` | Lista paginada con filtros opcionales | #82 |
+| `PUT` | `/api/admin/users/:id/role` | Cambiar rol (`{ "role": "MODERATOR" }`). No permite self-demotion. | #82 |
+| `PUT` | `/api/admin/users/:id/status` | Activar/suspender cuenta (`{ "active": false }`). No permite self-suspend. | #82 |
+| `GET` | `/api/admin/stats` | KPIs: totalUsers, activeUsers, matchesToday, totalQuestions, activeSpiders, pendingReports | #82 |
+| `GET` | `/api/admin/logs?limit=20` | Últimas N entradas de actividad del sistema (max 100) | #82 |
  
 ---
  
