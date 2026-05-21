@@ -412,10 +412,143 @@ Todos requieren rol `ADMIN`. Protegidos con `@PreAuthorize("hasRole('ADMIN')")` 
 | Método | Ruta | Descripción | Issues |
 |--------|------|-------------|--------|
 | `GET` | `/api/admin/users?page=0&size=20&search=&role=&active=` | Lista paginada con filtros opcionales | #82 |
-| `PUT` | `/api/admin/users/:id/role` | Cambiar rol (`{ "role": "MODERATOR" }`). No permite self-demotion. | #82 |
-| `PUT` | `/api/admin/users/:id/status` | Activar/suspender cuenta (`{ "active": false }`). No permite self-suspend. | #82 |
-| `GET` | `/api/admin/stats` | KPIs: totalUsers, activeUsers, matchesToday, totalQuestions, activeSpiders, pendingReports | #82 |
+| `PUT` | `/api/admin/users/{id}/role` | Cambiar rol. No permite self-demotion. | #82 |
+| `PUT` | `/api/admin/users/{id}/status` | Activar/suspender cuenta. No permite self-suspend. | #82 |
+| `GET` | `/api/admin/stats` | KPIs de la plataforma | #82 |
 | `GET` | `/api/admin/logs?limit=20` | Últimas N entradas de actividad del sistema (max 100) | #82 |
+ 
+### Contrato GET /api/admin/users
+ 
+```json
+GET /api/admin/users?page=0&size=20&search=alice&role=PLAYER&active=true
+Authorization: Bearer <admin-token>
+
+→ 200
+{
+  "items": [
+    {
+      "id": "bbbb0000-0000-0000-0000-000000000002",
+      "username": "alice",
+      "email": "alice@versus.com",
+      "role": "PLAYER",
+      "isActive": true,
+      "createdAt": "2025-03-15T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+ 
+> Todos los query params son opcionales. `search` hace coincidencia parcial case-insensitive sobre username y email.  
+> `role` debe ser uno de `PLAYER`, `MODERATOR`, `ADMIN`. Resultados ordenados por `createdAt` descendente.  
+> Errores: `401` token inválido · `403` usuario no es ADMIN.
+ 
+### Contrato PUT /api/admin/users/{id}/role
+ 
+```json
+PUT /api/admin/users/bbbb0000-0000-0000-0000-000000000002/role
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{ "role": "MODERATOR" }
+
+→ 200
+{
+  "id": "bbbb0000-0000-0000-0000-000000000002",
+  "username": "alice",
+  "email": "alice@versus.com",
+  "role": "MODERATOR",
+  "isActive": true,
+  "createdAt": "2025-03-15T10:00:00Z"
+}
+```
+ 
+> Errores: `400 VALIDATION_ERROR` si el target es el propio admin autenticado (no permite self-demotion) o si `role` es nulo/inválido · `404 NOT_FOUND` si el usuario no existe · `401` · `403`.
+ 
+### Contrato PUT /api/admin/users/{id}/status
+ 
+```json
+PUT /api/admin/users/bbbb0000-0000-0000-0000-000000000002/status
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{ "active": false }
+
+→ 200
+{
+  "id": "bbbb0000-0000-0000-0000-000000000002",
+  "username": "alice",
+  "email": "alice@versus.com",
+  "role": "PLAYER",
+  "isActive": false,
+  "createdAt": "2025-03-15T10:00:00Z"
+}
+```
+ 
+> Enviar `active: true` reactiva una cuenta suspendida. El backend rechaza `active: null` con `400`.  
+> Errores: `400 VALIDATION_ERROR` si el target es el propio admin autenticado (no permite self-suspend) · `404 NOT_FOUND` · `401` · `403`.
+ 
+### Contrato GET /api/admin/stats
+ 
+```json
+GET /api/admin/stats
+Authorization: Bearer <admin-token>
+
+→ 200
+{
+  "totalUsers": 342,
+  "activeUsers": 289,
+  "matchesToday": 17,
+  "totalQuestions": 1240,
+  "activeSpiders": 1,
+  "pendingReports": 5
+}
+```
+ 
+> Todos los valores son `long`. `matchesToday` cuenta partidas cuyo `createdAt` es posterior al inicio del día UTC actual.  
+> `activeSpiders` cuenta spiders con estado `RUNNING`. `pendingReports` cuenta reportes con estado `PENDING`.  
+> Errores: `401` · `403`.
+ 
+### Contrato GET /api/admin/logs
+ 
+```json
+GET /api/admin/logs?limit=20
+Authorization: Bearer <admin-token>
+
+→ 200
+[
+  {
+    "ts": "2025-04-18T14:32:00Z",
+    "level": "ERR",
+    "message": "Spider run finished with 4 errors, 10 questions inserted"
+  },
+  {
+    "ts": "2025-04-18T13:10:00Z",
+    "level": "INFO",
+    "message": "New user registered: player99"
+  },
+  {
+    "ts": "2025-04-18T12:55:00Z",
+    "level": "INFO",
+    "message": "Question report submitted: texto incorrecto"
+  }
+]
+```
+ 
+> `limit` por defecto es 20; el máximo aceptado es 100 (valores superiores se clampean).  
+> Resultados ordenados por `ts` descendente (más reciente primero).
+ 
+| `level` | Condición |
+|---------|-----------|
+| `INFO`  | Spider run sin errores, registro de usuario, reporte de pregunta |
+| `WARN`  | Spider run con 1 o 2 errores |
+| `ERR`   | Spider run con 3 o más errores |
+ 
+> Fuentes agregadas: ejecuciones de spiders (`startedAt`), registros de usuarios (`createdAt`), reportes de preguntas (`createdAt`).  
+> Errores: `401` · `403`.
  
 ---
  
