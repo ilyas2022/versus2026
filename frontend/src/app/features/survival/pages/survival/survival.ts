@@ -1,7 +1,10 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { UpperCasePipe } from '@angular/common';
 import { GameService } from '../../../../core/services/game.service';
+import { AchievementToastService } from '../../../../core/services/achievement-toast.service';
+import { NotificationCenterService } from '../../../../core/services/notification-center.service';
+import { audioService } from '../../../../core/services/AudioService';
 import {
   QuestionBinary,
   SurvivalAnswerResponse,
@@ -16,9 +19,11 @@ type Phase = 'idle' | 'correct' | 'wrong' | 'loading';
   templateUrl: './survival.html',
   styleUrl: './survival.scss',
 })
-export class Survival implements OnInit {
+export class Survival implements OnInit, OnDestroy {
   private readonly game = inject(GameService);
   private readonly router = inject(Router);
+  private readonly achievementToasts = inject(AchievementToastService);
+  private readonly notifications = inject(NotificationCenterService);
 
   lives  = signal(3);
   streak = signal(0);
@@ -41,6 +46,10 @@ export class Survival implements OnInit {
 
   ngOnInit(): void {
     this.start();
+  }
+
+  ngOnDestroy(): void {
+    audioService.stopBgm();
   }
 
   fmt(n: number): string { return n.toLocaleString('es-ES'); }
@@ -124,6 +133,7 @@ export class Survival implements OnInit {
         this.score.set(0);
         this.qIdx.set(0);
         this.phase.set('idle');
+        audioService.playBgm('bgm_game');
       },
       error: () => {
         this.phase.set('idle');
@@ -144,12 +154,24 @@ export class Survival implements OnInit {
     this.score.update((s) => s + res.scoreDelta);
     this.feedback.set({ isCorrect: res.correct, delta: res.scoreDelta });
     this.phase.set(res.correct ? 'correct' : 'wrong');
+    audioService.play(res.correct ? 'correct' : 'wrong');
+
+    if (res.correct && res.streak === 3) {
+      audioService.play('streak_3');
+    }
+    if (res.correct && res.streak === 5) {
+      audioService.play('streak_5');
+    }
 
     if (res.nextQuestion && res.nextQuestion.type === 'BINARY') {
       this.pendingNext = res.nextQuestion;
     }
 
     if (res.gameOver) {
+      audioService.play('game_over');
+      audioService.stopBgm();
+      this.notifications.addAchievements(res.achievementsUnlocked);
+      this.achievementToasts.showMany(res.achievementsUnlocked);
       const finalScore = this.score();
       const finalStreak = this.streak();
       const rounds = this.qIdx() + 1;

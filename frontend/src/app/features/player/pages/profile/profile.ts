@@ -8,10 +8,13 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { TopbarComponent } from '../../../../shared/components/layout/topbar/topbar';
 import { AuthService } from '../../../../core/services/auth.service';
 import { UserService } from '../../../../core/services/user.service';
 import { StatsService } from '../../../../core/services/stats.service';
+import { AchievementService } from '../../../../core/services/achievement.service';
+import { Achievement } from '../../../../core/models/achievement.models';
 import { UserMe } from '../../../../core/models/auth.models';
 import {
   GameMode,
@@ -34,7 +37,7 @@ const MULTIPLAYER_MODES: GameMode[] = ['BINARY_DUEL', 'PRECISION_DUEL', 'SABOTAG
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [TopbarComponent, MatchDetailModal, DatePipe],
+  imports: [RouterLink, TopbarComponent, MatchDetailModal, DatePipe],
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
@@ -42,6 +45,7 @@ export class Profile implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly users = inject(UserService);
   private readonly statsApi = inject(StatsService);
+  private readonly achievementsApi = inject(AchievementService);
 
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
 
@@ -53,6 +57,7 @@ export class Profile implements OnInit {
   readonly historyLoading = signal(false);
   readonly selectedMatchId = signal<string | null>(null);
   readonly modeFilter = signal<GameMode | undefined>(undefined);
+  readonly achievements = signal<Achievement[]>([]);
 
   private chartDrawn = false;
 
@@ -90,6 +95,13 @@ export class Profile implements OnInit {
     if (m > 0) return `${m}m`;
     return '<1m';
   });
+
+  readonly unlockedAchievements = computed(() =>
+    this.achievements().filter((a) => a.unlocked)
+  );
+
+  readonly unlockedCount = computed(() => this.unlockedAchievements().length);
+  readonly totalAchievements = computed(() => this.achievements().length);
 
   readonly singleplayerStats = computed(() =>
     (this.overview()?.byMode ?? [])
@@ -131,6 +143,10 @@ export class Profile implements OnInit {
     this.statsApi.mine().subscribe({
       next: (o) => this.overview.set(o),
       error: () => {},
+    });
+    this.achievementsApi.list().subscribe({
+      next: (list) => this.achievements.set(list ?? []),
+      error: () => this.achievements.set([]),
     });
     this.loadHistory(0);
   }
@@ -180,6 +196,25 @@ export class Profile implements OnInit {
     return 'vs-result--draw';
   }
 
+  achievementIcon(iconKey: string): string {
+    const labels: Record<string, string> = {
+      first: '1', win: 'W', streak5: '5', streak10: '10', streak20: '20',
+      precision: 'P', sniper: 'P', target: 'P', survival: 'S', shield: 'S',
+      perfect: 'S', duel: 'D', arena: 'D', sabotage: 'SB', friends: 'F',
+      invite: 'I', collector: 'C', lock: '?',
+    };
+    return labels[iconKey] ?? '?';
+  }
+
+  achievementDate(achievement: Achievement): string {
+    if (!achievement.unlockedAt) return 'Bloqueado';
+    return new Date(achievement.unlockedAt).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
   private drawChart(): void {
     const scores = this.chartScores();
     if (scores.length < 2) return;
@@ -202,7 +237,6 @@ export class Profile implements OnInit {
 
     ctx.clearRect(0, 0, W, H);
 
-    // Grid line
     ctx.strokeStyle = 'rgba(255,255,255,0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -210,7 +244,6 @@ export class Profile implements OnInit {
     ctx.lineTo(W, H / 2);
     ctx.stroke();
 
-    // Line
     ctx.strokeStyle = '#f0c060';
     ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
@@ -223,7 +256,6 @@ export class Profile implements OnInit {
     });
     ctx.stroke();
 
-    // Dots
     scores.forEach((v, i) => {
       const x = pad + (i / (n - 1)) * (W - 2 * pad);
       const y = H - pad - ((v - minY) / rangeY) * (H - 2 * pad);

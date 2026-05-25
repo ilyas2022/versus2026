@@ -4,7 +4,9 @@ import com.versus.api.common.dto.ErrorResponse;
 import com.versus.api.match.GameMode;
 import com.versus.api.match.MatchService;
 import com.versus.api.match.dto.MatchHistoryItemResponse;
+import com.versus.api.users.dto.ChangePasswordRequest;
 import com.versus.api.users.dto.UpdateMeRequest;
+import com.versus.api.users.dto.UpdateAvatarRequest;
 import com.versus.api.users.dto.UserMeResponse;
 import com.versus.api.users.dto.UserPublicResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,7 +18,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -61,6 +66,47 @@ public class UserController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) GameMode mode) {
         return matchService.getHistory(userId, page, size, mode);
+    }
+
+    @Operation(summary = "Change the authenticated user's password",
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "Password changed"),
+                    @ApiResponse(responseCode = "401", description = "Current password is incorrect",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    @PutMapping("/me/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@AuthenticationPrincipal UUID userId,
+                               @Valid @RequestBody ChangePasswordRequest req) {
+        userService.changePassword(userId, req);
+    }
+
+    @Operation(summary = "Select a predefined avatar URL",
+            responses = @ApiResponse(responseCode = "200", description = "Avatar updated"))
+    @PutMapping(value = "/me/avatar", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public UserMeResponse updateAvatar(@AuthenticationPrincipal UUID userId,
+                                       @Valid @RequestBody UpdateAvatarRequest req) {
+        return userService.updateAvatar(userId, req.avatarUrl());
+    }
+
+    @Operation(summary = "Soft delete the authenticated user's account",
+            responses = @ApiResponse(responseCode = "204", description = "Account deleted"))
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMe(@AuthenticationPrincipal UUID userId) {
+        userService.deleteMe(userId);
+    }
+
+    @Operation(summary = "Upload and set the authenticated user's avatar",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Avatar updated"),
+                    @ApiResponse(responseCode = "400", description = "Invalid image",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    @PutMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public UserMeResponse updateAvatar(@AuthenticationPrincipal UUID userId,
+                                       @RequestParam("file") MultipartFile file) {
+        return userService.updateAvatar(userId, file);
     }
 
     @Operation(summary = "Get a user's public profile by ID",
