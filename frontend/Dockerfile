@@ -7,11 +7,9 @@ FROM node:24 AS development
 
 WORKDIR /app
 
-RUN npm install -g @angular/cli
-
 EXPOSE 4200
 
-CMD sh -c "[ -f package.json ] && npm install && ng serve --host 0.0.0.0 --poll 500 || echo 'No hay proyecto Angular todavía. Entra al contenedor y ejecuta: ng new <nombre-proyecto> --directory .'"
+CMD sh -c "[ -f package.json ] && npm install && npm start -- --host 0.0.0.0 --poll 500 || echo 'No hay proyecto Angular todavia.'"
 
 
 # ─────────────────────────────────────────────
@@ -37,9 +35,16 @@ RUN npm run build -- --configuration production
 FROM nginx:alpine AS production
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 COPY --from=builder /app/dist/*/browser /usr/share/nginx/html
 
-EXPOSE 80
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && chown -R nginx:nginx /etc/nginx/conf.d \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid
+
+USER nginx
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

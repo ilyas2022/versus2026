@@ -57,6 +57,9 @@ public class Question {
     @Column(name = "tolerance_percent", precision = 6, scale = 2)
     private BigDecimal tolerancePercent;
 
+    @Column(name = "text_hash", length = 64, unique = true)
+    private String textHash;
+
     @Column(columnDefinition = "TEXT")
     private String explanation;
 

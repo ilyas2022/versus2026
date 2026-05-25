@@ -18,14 +18,14 @@ Un juego de preguntas multijugador con **5 modos de juego**. Las preguntas se ex
  
 ## 🗺️ Módulos del sistema
  
-El proyecto se divide en **8 módulos**. Cada issue pertenece a uno.
+El proyecto se divide en **9 módulos**. Cada issue pertenece a uno.
  
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        VERSUS                           │
 │                                                         │
 │  [AUTH]  [USERS]  [QUESTIONS]  [GAME]  [MATCH]         │
-│  [STATS]  [SCRAPING]  [ADMIN]                          │
+│  [STATS]  [ACHIEVEMENTS]  [SCRAPING]  [ADMIN]          │
 └─────────────────────────────────────────────────────────┘
 ```
  
@@ -95,6 +95,9 @@ Gestión del perfil de usuario.
 |--------|------|-------------|
 | `GET` | `/api/users/me` | Perfil del usuario autenticado |
 | `PUT` | `/api/users/me` | Actualizar username o avatar |
+| `PUT` | `/api/users/me/password` | Cambiar contrasena (requiere contrasena actual) |
+| `PUT` | `/api/users/me/avatar` | Seleccionar avatar por URL o subir imagen multipart |
+| `DELETE` | `/api/users/me` | Eliminar cuenta con soft delete y anonimizacion |
 | `GET` | `/api/users/:id` | Perfil público de cualquier usuario |
  
 ### Contrato de perfil
@@ -111,9 +114,59 @@ GET /api/users/me
   "createdAt": "2025-01-01T00:00:00Z"
 }
 ```
+
+### Contratos de ajustes de cuenta
+
+La pantalla `/settings` centraliza cuenta, avatar, notificaciones, audio y zona de peligro.
+
+**Cambiar password:**
+```json
+PUT /api/users/me/password
+{
+  "currentPassword": "actual123",
+  "newPassword": "nueva1234"
+}
+```
+Respuesta: `204 No Content`. La nueva contrasena debe tener minimo 8 caracteres.
+
+**Seleccionar avatar predefinido:**
+```json
+PUT /api/users/me/avatar
+Content-Type: application/json
+{
+  "avatarUrl": "https://api.dicebear.com/..."
+}
+```
+
+**Subir avatar propio:**
+```http
+PUT /api/users/me/avatar
+Content-Type: multipart/form-data
+
+file=<png|jpeg|max 2MB>
+```
+
+El backend devuelve `UserMeResponse` y el frontend actualiza topbar/perfil inmediatamente. Hasta que exista el modulo de almacenamiento, el upload se guarda como `data:image/...;base64` en `users.avatar_url`.
+
+**Eliminar cuenta:**
+```http
+DELETE /api/users/me
+```
+Respuesta: `204 No Content`. En frontend se exige doble confirmacion escribiendo el username exacto. En backend se aplica soft delete con `status=DELETED`, `is_active=false` y anonimizacion de username/email/avatar/password.
+
+### Pantalla `/settings` (frontend)
+
+- Cuenta: username editable; email visible pero dependiente del modulo de email para cambio real.
+- Password: requiere password actual y confirmacion visual en el formulario.
+- Avatar: galeria de avatares predefinidos con confirmacion `Aceptar/Cancelar`; upload PNG/JPEG con crop basico y boton de subida.
+- Notificaciones: preferencias de solicitudes de amistad, invitaciones y logros guardadas en `localStorage`.
+- Centro de notificaciones: desplegable en el topbar con contador de no leidas, historial local por usuario (`vs.notifications.<userId>`) y acciones de marcar leidas/vaciar.
+- Audio: controles `Efectos de sonido`, `Musica de fondo`, silenciar todo y feedback reducido guardados en `localStorage`.
+- Zona de peligro: borrar cuenta exige escribir el username.
+- Topbar: muestra username/avatar reales y XP calculado desde `/api/stats/me` mientras no exista campo `xp` dedicado.
  
 ---
- 
+
 ## ❓ Módulo 3 — QUESTIONS
 > Issues: #41, #42, #43, #44, #52
  
@@ -213,7 +266,8 @@ Frontend                          Backend
   "streak": 4,
   "scoreDelta": 150,
   "nextQuestion": { ... },
-  "gameOver": false
+  "gameOver": false,
+  "achievementsUnlocked": []
 }
 ```
  
@@ -242,7 +296,8 @@ Frontend                          Backend
   "lifeDelta": 5,
   "livesRemaining": 105,
   "nextQuestion": { ... },
-  "gameOver": false
+  "gameOver": false,
+  "achievementsUnlocked": []
 }
 ```
  
@@ -262,58 +317,90 @@ La comunicación durante la partida es por WebSocket (`STOMP` sobre SockJS es el
 ### Conexión WebSocket
  
 ```
-Frontend conecta a:  ws://localhost:8080/ws
+Frontend conecta a:  ws://localhost:8080/ws  (STOMP sobre SockJS)
+Auth: header CONNECT  Authorization: Bearer <jwt>
  
 Suscripciones del cliente:
-  /user/queue/match          → eventos de la partida (respuestas, vidas, resultado)
-  /topic/match/{matchId}     → estado compartido de la sala
+  /user/queue/achievements   -> logros desbloqueados (ACHIEVEMENT_UNLOCKED)
+  /user/queue/match          → notificaciones privadas (MATCH_FOUND)
+  /topic/match/{matchId}     → estado compartido del lobby/partida
  
 Envíos del cliente:
-  /app/match/answer          → enviar respuesta
-  /app/match/ready           → confirmar que está listo para empezar
+  /app/match/ready           → marcar listo en el lobby       (PR #90)
+  /app/match/unready         → quitar listo                    (PR #90)
+  /app/match/abandon         → abandonar la sala vía WS        (PR #90)
+  /app/match/answer          → enviar respuesta a una ronda    (PR #91 #92 #93)
+  /app/match/sabotage        → activar sabotaje                (PR #93)
+```
+
+Detalles de la capa de transport (envelope, autenticación, reconexión) en [`docs/backend/modules/websocket.md`](backend/modules/websocket.md).
+ 
+### Flujo de sala de espera → partida (PR #90, ya implementado)
+ 
+```
+1. POST /api/matchmaking/queue {mode}   → Entrar en cola
+2. Scheduler empareja N jugadores       → emite MATCH_FOUND a cada uno
+3. Frontend redirige a /play/lobby/:matchId
+4. SUBSCRIBE /topic/match/{id}; GET /api/matches/{id}/lobby para snapshot
+5. Cada jugador envía /app/match/ready  → emite PLAYER_READY
+6. Cuando todos están listos            → emite MATCH_STARTING { countdownSeconds }
+7. Tras el countdown                    → emite MATCH_START { matchId, mode }
+8. (PR #91+) lógica de juego: QUESTION / ROUND_RESULT / MATCH_END
 ```
  
-### Flujo de sala de espera → partida
- 
-```
-1. POST /api/match/queue        → Entrar en cola de matchmaking
-2. Backend empareja dos jugadores → emite evento "MATCH_FOUND"
-3. Frontend redirige a /sala/:matchId
-4. Cada jugador envía /app/match/ready
-5. Cuando ambos están listos → emite "MATCH_START" con 1ª pregunta
-6. Cada pregunta → jugadores responden → backend procesa → emite resultado
-7. Al terminar → emite "MATCH_END" con ganador y stats
-```
- 
-### Endpoints REST de sala (previos a la partida)
+### Endpoints REST de sala (PR #90)
  
 | Método | Ruta | Descripción | Issues |
 |--------|------|-------------|--------|
-| `POST` | `/api/match/queue` | Entrar en cola de matchmaking | #66 |
-| `DELETE` | `/api/match/queue` | Salir de la cola | #66 |
-| `POST` | `/api/match/room` | Crear sala privada con código | #65 |
-| `POST` | `/api/match/room/join` | Unirse a sala privada por código | #65 |
-| `GET` | `/api/match/:matchId` | Estado actual de una sala | #65 |
+| `POST` | `/api/matches` | Crear sala privada (devuelve `roomCode`) | #90 |
+| `POST` | `/api/matches/{id}/join` | Unirse a sala existente | #90 |
+| `DELETE` | `/api/matches/{id}/abandon` | Abandonar la sala | #90 |
+| `GET` | `/api/matches/{id}/lobby` | Snapshot del estado del lobby | #90 |
+| `POST` | `/api/matchmaking/queue` | Entrar en cola de matchmaking | #90 |
+| `DELETE` | `/api/matchmaking/queue` | Salir de la cola | #90 |
  
 ### Eventos WebSocket (backend → frontend)
- 
-| Evento | Canal | Payload |
-|--------|-------|---------|
-| `MATCH_FOUND` | `/user/queue/match` | `{ matchId, opponent }` |
-| `MATCH_START` | `/topic/match/{id}` | `{ question, mode }` |
-| `QUESTION` | `/topic/match/{id}` | `{ question, timeLimit }` |
-| `ROUND_RESULT` | `/topic/match/{id}` | `{ player1Lives, player2Lives, correct }` |
-| `MATCH_END` | `/topic/match/{id}` | `{ winner, stats }` |
- 
-### Lógica de daño por modo
- 
-| Modo | Quién pierde vida | Cuándo |
-|------|-------------------|--------|
-| Duelo binario | El que falla | Al responder |
-| Duelo de precisión | El que se desvía más | Al responder ambos |
-| Sabotaje | El rival | Cuando el otro acierta mejor |
- 
-> El algoritmo de daño al rival (Sabotaje) se implementa en #74.
+
+Todos los eventos van envueltos en `{ type, matchId, payload }`.
+
+| Evento | PR | Canal | Payload |
+|--------|----|-------|---------|
+| `MATCH_FOUND` | #90 | `/user/queue/match` | `{ matchId, mode, opponents: PlayerInLobby[] }` |
+| `PLAYER_JOINED` | #90 | `/topic/match/{id}` | `{ player: PlayerInLobby }` |
+| `PLAYER_LEFT` | #90 | `/topic/match/{id}` | `{ userId }` |
+| `PLAYER_READY` | #90 | `/topic/match/{id}` | `{ userId, ready }` |
+| `MATCH_STARTING` | #90 | `/topic/match/{id}` | `{ countdownSeconds }` |
+| `MATCH_START` | #90 | `/topic/match/{id}` | `{ matchId, mode }` |
+| `QUESTION` | #91-#93 | `/topic/match/{id}` | `{ roundNumber, question, serverNow, deadline, timerSeconds, effectsApplied }` |
+| `ANSWER_RESULT` | #91-#93 | `/user/queue/match` | `{ accepted, rejectionReason?, isCorrect?, deviation? }` |
+| `ROUND_RESULT` | #91-#93 | `/topic/match/{id}` | `{ roundNumber, questionId, reveal, outcomes[], runtime }` |
+| `MATCH_END` | #91-#93 | `/topic/match/{id}` | `{ winnerUserId?, reason, stats[] }` (`reason: NORMAL\|DISCONNECT\|MAX_ROUNDS_TIE`) |
+| `SABOTAGE_ACTIVATED` | #93 | `/topic/match/{id}` | `{ type, by, target, appliesOnRound }` |
+| `SABOTAGE_REJECTED` | #93 | `/user/queue/match` | `{ reason: NO_TOKENS\|ALREADY_USED\|INVALID_TARGET\|WRONG_PHASE\|UNSUPPORTED_MODE }` |
+| `EFFECT_APPLIED` | #93 | `/topic/match/{id}` | `{ type, target, roundNumber }` |
+
+`PlayerInLobby = { userId, username, avatarUrl, ready }`.
+`PlayerRoundOutcome = { userId, answered, isCorrect, deviation, valueGiven, optionGiven, lifeDelta }`.
+`PlayerRuntimeSnapshot = { userId, livesRemaining, score, currentStreak, sabotageTokens, pendingIncomingEffects: SabotageType[] }`.
+`FinalStats = { userId, username, result: WIN|LOSS|DRAW|ABANDONED, livesRemaining, score, bestStreakInMatch, roundsPlayed, avgDeviation, sabotagesUsed }`.
+
+### Mensajes que envía el cliente
+
+| Destination | Payload | Modos |
+|---|---|---|
+| `/app/match/ready` · `/unready` · `/abandon` | `{ matchId }` | Todos (lobby) |
+| `/app/match/answer` | `{ matchId, questionId, optionId? (UUID), value? (BigDecimal) }` | #91 #92 #93 |
+| `/app/match/sabotage` | `{ matchId, type, targetUserId }` | #93 |
+
+### Lógica de daño por modo (Sprint 4 — implementación final)
+
+| Modo | Quién pierde vida | Detalles |
+|------|-------------------|----------|
+| **Binary Duel (#91)** | Quien falla | `-1` vida base. Bonus de racha: si el rival acertó con `streak >= 1` previo, **`-1` adicional**. Sin respuesta = `-1`. |
+| **Precision Duel (#92)** | Quien tiene mayor desviación | `-max(1, ceil(|devLoser − devWinner| × 0.02))`. Empate de desviaciones = 0 daño + racha. Timeout = **-3** vidas. |
+| **Sabotaje (#93)** | Mecánica binaria + efectos | +1 token cada 3 aciertos. Tres efectos: `TIME_BOMB` (-5s al timer del rival), `OBFUSCATION` (oculta opción), `LIFE_STEAL` (si target falla, atacante recupera +1 vida). |
+
+Defaults: **3 vidas iniciales, 15s/pregunta (10s con TIME_BOMB), 10 rondas máximas**. Detalle completo en [`docs/backend/modules/duel.md`](backend/modules/duel.md).
  
 ---
  
@@ -351,9 +438,52 @@ GET /api/stats/me?mode=SURVIVAL
 > `avgDeviation` solo aplica a modos numéricos (PRECISION, PRECISION_DUEL).
  
 ---
+
+## Modulo 7 - ACHIEVEMENTS
+> Sistema de logros y emblemas visibles en perfil/topbar.
+
+Los logros se evaluan al terminar una partida singleplayer desde `GameService`. El catalogo inicial se siembra en arranque y cada logro solo puede desbloquearse una vez por usuario.
+
+### Endpoints
+
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| `GET` | `/api/achievements` | Catalogo completo con estado para el usuario autenticado |
+
+### Contrato de logro
+
+```json
+{
+  "id": "uuid",
+  "key": "first_game",
+  "name": "Primeros pasos",
+  "description": "Juega tu primera partida.",
+  "iconKey": "first",
+  "category": "Primeros pasos",
+  "unlocked": true,
+  "unlockedAt": "2026-05-07T15:00:00Z"
+}
+```
+
+Si un logro esta bloqueado, el backend devuelve `name: "???"`, `description: "???"` e `iconKey: "lock"` para no revelar como desbloquearlo.
+
+### Eventos WebSocket
+
+| Evento | Canal | Payload |
+|--------|-------|---------|
+| `ACHIEVEMENT_UNLOCKED` | `/user/queue/achievements` | `{ "type": "ACHIEVEMENT_UNLOCKED", "achievement": { ... } }` |
+
+### Frontend
+
+- Toast global no bloqueante al desbloquear un logro.
+- Centro de notificaciones: registra logros desbloqueados en tiempo real, respeta `vs.notificationPrefs.achievements` y enlaza a `/profile`.
+- Perfil: seccion `Logros` con contador `desbloqueados/total`, grid de catalogo y fecha si esta desbloqueado.
+- Topbar/avatar: muestra como emblema el logro desbloqueado mas reciente.
  
-## 🕷️ Módulo 7 — SCRAPING
-> Issues: #45, #46, #47, #48, #49, #50, #51, #52
+---
+ 
+## 🕷️ Módulo 8 — SCRAPING
+
  
 Scrapers en Scrapy que extraen datos reales y los insertan en PostgreSQL como preguntas.
  
@@ -361,19 +491,23 @@ Scrapers en Scrapy que extraen datos reales y los insertan en PostgreSQL como pr
  
 | Spider | Fuente | Tipo pregunta | Issue |
 |--------|--------|---------------|-------|
-| Instagram followers | Instagram/web | NUMERIC | #46 |
-| Estadísticas fútbol | FBref / Transfermarkt | NUMERIC + BINARY | #47 |
-| Taquilla de cine | Box Office Mojo | NUMERIC | #48 |
-| Capitales y geografía | Wikipedia | BINARY | #49 |
-| Récords varios | Wikipedia / Guinness | NUMERIC | #50 |
+| RRSS (YouTube/TikTok/Twitch) | SocialBlade | NUMERIC | #97 ✅ |
+| Estadísticas fútbol | FBref / Transfermarkt | NUMERIC + BINARY | #98 |
+| Taquilla de cine | Box Office Mojo | NUMERIC | #98 |
+| Capitales y geografía | Wikipedia | BINARY | #98 |
+| Récords varios | Wikipedia / Guinness | NUMERIC | #98 |
  
 ### Pipeline de datos
  
 ```
 Spider (Scrapy)
-    │
+    │  yield QuestionItem(text, type, category, ...)
     ▼
-Item Pipeline → normalización y validación (#52)
+DeerdaysScraperPipeline (#97 ✅)
+    ├── Validación de calidad mínima
+    ├── Deduplicación por SHA-256(text) → campo text_hash en questions
+    ├── INSERT questions + question_options
+    └── UPDATE spider_runs (questionsInserted, errors, finishedAt)
     │
     ▼
 PostgreSQL → tabla questions (estado: PENDING_REVIEW)
@@ -382,18 +516,23 @@ PostgreSQL → tabla questions (estado: PENDING_REVIEW)
 Moderador revisa → estado: ACTIVE
 ```
  
-### Endpoints de gestión (solo ADMIN)
+> Ver documentación detallada del pipeline en [`docs/scraping-pipeline.md`](scraping-pipeline.md).
  
-| Método | Ruta | Descripción | Issues |
-|--------|------|-------------|--------|
-| `GET` | `/api/admin/spiders` | Lista de spiders y último estado | #51 |
-| `POST` | `/api/admin/spiders/:id/run` | Lanzar spider manualmente | #51 |
-| `GET` | `/api/admin/spiders/:id/runs` | Historial de ejecuciones | #51 |
+### Endpoints de gestión (solo ADMIN)
+
+> Implementados en #97. El identificador de ruta es el **nombre** del spider, no su UUID.
+ 
+| Método | Ruta | Descripción | Issue |
+|--------|------|-------------|-------|
+| `GET` | `/api/admin/spiders` | Lista de spiders con estado actual y último run | #97 ✅ |
+| `POST` | `/api/admin/spiders/{name}/run` | Lanza el spider por nombre. 202 con el `SpiderRun` creado. 404 si no existe, 409 si ya está en ejecución | #97 ✅ |
+| `GET` | `/api/admin/spiders/{name}/runs` | Historial de runs del spider ordenados por fecha descendente | #97 ✅ |
  
 ---
- 
-## 🛡️ Módulo 8 — ADMIN & MODERACIÓN
+
+## 🛡️ Módulo 9 — ADMIN & MODERACIÓN
 > Issues: #80, #81, #82
+
  
 Gestión de preguntas reportadas y administración de la plataforma.
  
@@ -401,9 +540,35 @@ Gestión de preguntas reportadas y administración de la plataforma.
  
 | Método | Ruta | Descripción | Issues |
 |--------|------|-------------|--------|
-| `POST` | `/api/questions/:id/report` | Reportar una pregunta | #80 |
-| `GET` | `/api/mod/reports` | Lista de reportes pendientes (MODERATOR+) | #81 |
-| `PUT` | `/api/mod/reports/:id` | Resolver reporte (DISMISS / DEACTIVATE) | #81 |
+| `POST` | `/api/questions/{id}/report` | Reportar una pregunta (PLAYER autenticado) | #100 ✅ |
+| `GET` | `/api/moderation/reports` | Lista de reportes, filtrable por `?status=` (MODERATOR+) | #100 ✅ |
+| `PUT` | `/api/moderation/reports/{id}/resolve` | Resolver reporte: DISMISS / EDIT_QUESTION / DELETE_QUESTION (MODERATOR+) | #100 ✅ |
+ 
+#### Contrato de reporte (POST `/api/questions/{id}/report`)
+ 
+**Request:**
+```json
+{ "reason": "WRONG_ANSWER", "comment": "Texto opcional" }
+```
+Valores de `reason`: `WRONG_ANSWER`, `OUTDATED`, `OFFENSIVE`, `OTHER`
+ 
+**Response 201:** `ReportResponse` — ver [`docs/moderation.md`](moderation.md)
+ 
+#### Contrato de resolución (PUT `/api/moderation/reports/{id}/resolve`)
+ 
+**Request:**
+```json
+{ "action": "DELETE_QUESTION" }
+```
+Valores de `action`: `DISMISS`, `EDIT_QUESTION`, `DELETE_QUESTION`
+ 
+**Response 200:** `ReportResponse` con `status`, `resolvedBy`, `resolvedAt` y `action` rellenos.
+ 
+#### Auto-flagging
+ 
+Cuando una pregunta acumula **5 reportes PENDING**, su estado cambia automáticamente a `FLAGGED` y deja de servirse en partidas hasta que un moderador la revisa.
+ 
+> Ver documentación completa en [`docs/moderation.md`](moderation.md).
  
 ### Endpoints de administración
  

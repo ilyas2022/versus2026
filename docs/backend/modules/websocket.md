@@ -2,7 +2,11 @@
 
 Paquete raíz: `com.versus.api.websocket`
 Depende de: `auth` (para validar JWT)
-Estado: ✅ infraestructura base (PR #89, Sprint 3) — handlers de partida pendientes (PR #90 en adelante)
+Estado:
+- ✅ Infraestructura base STOMP + JWT (PR #89, Sprint 3).
+- ✅ Handlers de lobby/matchmaking (PR #90, ver [módulo match](match.md)).
+- ✅ Handlers de modos multijugador (Binary Duel #91, Precision Duel #92, Sabotaje #93) — ver [`duel.md`](duel.md). `DuelWebSocketController` expone `/app/match/answer` y `/app/match/sabotage`; los eventos `QUESTION`, `ROUND_RESULT`, `MATCH_END`, `SABOTAGE_ACTIVATED`, `EFFECT_APPLIED`, `SABOTAGE_REJECTED`, `ANSWER_RESULT` viajan envueltos en `MatchEventEnvelope`.
+
 
 ---
 
@@ -95,8 +99,12 @@ classDiagram
 
     WebSocketConfig --> JwtChannelInterceptor : registra en inbound channel
     JwtChannelInterceptor --> JwtService : valida tokens
-    EchoController ..> MatchEventEnvelope : (futuros handlers lo usarán)
+
 ```
+> El `EchoController` que existió como smoke test del PR #89 fue eliminado al cerrar el PR #90; los handlers reales viven ahora en [`MatchWebSocketController`](match.md#endpoints-rest) (`/app/match/ready`, `/app/match/unready`, `/app/match/abandon`).
+
+
+    EchoController ..> MatchEventEnvelope : (futuros handlers lo usarán)
 
 ---
 
@@ -145,6 +153,7 @@ Si el token falta, no es Bearer, está caducado, está firmado con otra clave o 
 |---|---|---|
 | `/app/*` | Mensajes que el **cliente envía al servidor** (despacha a `@MessageMapping`). | `/app/match/answer`, `/app/match/ready` |
 | `/topic/*` | Broadcast a todos los suscriptores. | `/topic/match/{matchId}` (estado compartido) |
+| `/user/queue/achievements` | Mensaje privado de logros desbloqueados para el usuario autenticado. | `ACHIEVEMENT_UNLOCKED` |
 | `/user/queue/*` | Mensaje **privado** dirigido a un usuario concreto. Spring resuelve `{userId}` desde el `Principal` autenticado. | `/user/queue/match` (notificaciones tipo "te tocó pareja") |
 
 Reglas:
@@ -199,6 +208,17 @@ Características:
 - `publish()` no encola: si no estás conectado, el mensaje se descarta y se loguea un warning. Es responsabilidad del caller llamar `connect()` antes.
 
 URL base configurable en `frontend/src/environments/environment.ts → wsUrl`.
+
+### Centro de notificaciones Angular
+
+`NotificationCenterService` reutiliza `WebSocketService` para mantener un centro de notificaciones transversal en el topbar.
+
+| Canal | Payload | Uso |
+|---|---|---|
+| `/user/queue/match` | `MatchEventEnvelope<MATCH_FOUND>` | Crea una notificacion "Rival encontrado" y enlaza a `/play/lobby/:matchId`. |
+| `/user/queue/achievements` | `{ type: "ACHIEVEMENT_UNLOCKED", achievement }` | Crea una notificacion de logro y enlaza a `/profile`. |
+
+El cliente persiste el historial en `localStorage` por usuario (`vs.notifications.<userId>`) y limita el listado a 30 elementos. Las preferencias de `/settings` se leen de `vs.notificationPrefs`; `matchInvites=false` bloquea eventos `MATCH_FOUND` y `achievements=false` bloquea entradas/toasts de logros.
 
 ---
 
@@ -271,10 +291,8 @@ Sin token o con un token modificado deberías ver el frame ERROR `Missing Author
 
 ## Trabajo pendiente (PRs siguientes)
 
-- **PR #90 (lobby + matchmaking):** crear `MatchService` + `MatchWebSocketController` con handlers `/app/match/ready` y `/app/match/abandon`; eliminar `EchoController`.
-- **PR #91 (Binary Duel):** handler `/app/match/answer` y emisor de eventos `QUESTION` / `ROUND_RESULT` / `MATCH_END`.
-- **PR #92 (Precision Duel):** misma estructura adaptada a preguntas numéricas.
-- **PR #93 (Sabotaje):** handler `/app/match/sabotage` y uso de `convertAndSendToUser` para aplicar efectos solo al jugador objetivo.
+- ~~**PR #90 (lobby + matchmaking):** crear `MatchService` + `MatchWebSocketController` con handlers `/app/match/ready` y `/app/match/abandon`; eliminar `EchoController`.~~ ✅ Cerrado.
+- ~~**PRs #91/#92/#93 (modos multijugador):** handlers `/app/match/answer` y `/app/match/sabotage`, emisores de `QUESTION` / `ROUND_RESULT` / `MATCH_END` / `SABOTAGE_*`~~ ✅ Cerrado (módulo [`duel`](duel.md)).
 
 ---
 
@@ -283,4 +301,5 @@ Sin token o con un token modificado deberías ver el frame ERROR `Missing Author
 1. **Estado de partida en memoria, persistencia solo al final.** Se decidió en el plan: el `MatchService` mantendrá un `Map<UUID, LiveMatchState>`; los `match_rounds`/`match_answers` se vuelcan a BD solo al cerrar la partida. Si el server cae a media partida, esa partida se pierde — asumido por simplicidad.
 2. **Principal = UUID del usuario.** Mismo criterio que `JwtAuthFilter` HTTP. Permite que cualquier handler haga `UUID.fromString(principal.getName())` sin tocar BD.
 3. **No se confía en datos de identidad enviados por el cliente.** El payload nunca lleva "yo soy el user X" — siempre se usa el `Principal` del frame.
-4. **Borrado del Echo.** El `EchoController` está marcado con `// TODO(#90)` y se elimina en el PR del lobby. Sirve hoy para validar el handshake desde DevTools sin necesidad de un caso de uso real.
+4. **Borrado del Echo.** El `EchoController` que existió en PR #89 como smoke test se eliminó al cerrar PR #90, sustituido por `MatchWebSocketController`.
+

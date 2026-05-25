@@ -9,8 +9,9 @@ erDiagram
     string username UK
     string email UK
     string password_hash
-    string avatar_url
+    text avatar_url
     enum role
+    enum status
     boolean is_active
     timestamp created_at
     timestamp updated_at
@@ -36,6 +37,7 @@ erDiagram
     numeric correct_value
     string unit
     numeric tolerance_percent
+    string text_hash UK
     text explanation
   }
 
@@ -106,6 +108,21 @@ erDiagram
     int current_streak
   }
 
+  achievements {
+    uuid id PK
+    string achievement_key UK
+    string name
+    string description
+    string icon_key
+    string category
+  }
+
+  user_achievements {
+    uuid user_id PK,FK
+    uuid achievement_id PK,FK
+    timestamp unlocked_at
+  }
+
   matchmaking_queue {
     uuid id PK
     uuid user_id FK
@@ -117,9 +134,13 @@ erDiagram
     uuid id PK
     uuid question_id FK
     uuid reported_by FK
-    string reason
+    enum reason
+    string comment
     enum status
     timestamp created_at
+    uuid resolved_by FK
+    timestamp resolved_at
+    enum action
   }
 
   spiders {
@@ -150,6 +171,8 @@ erDiagram
   users ||--o{ match_answers : "responde"
   users ||--o{ rankings : "tiene"
   users ||--o{ player_stats : "acumula"
+  users ||--o{ user_achievements : "desbloquea"
+  achievements ||--o{ user_achievements : "aparece en"
   users ||--o{ matchmaking_queue : "espera en"
   users ||--o{ question_reports : "reporta"
   questions ||--o{ question_reports : "es reportada"
@@ -168,6 +191,8 @@ erDiagram
 | Cambio | Motivo |
 |---|---|
 | `users.is_active`, `users.updated_at` | Soft-deactivation de cuentas y auditoría. |
+| `users.status` | Estado funcional de cuenta (`ACTIVE`, `DELETED`) para soft delete explicito. |
+| `users.avatar_url` como TEXT | Permite guardar temporalmente avatares subidos como `data:image/...;base64` hasta tener almacenamiento externo. |
 | `users.email` y `users.username` con UNIQUE | Garantiza unicidad para login y registro. |
 | Nueva tabla `refresh_tokens` | JWT con rotación: hash + expiración + flag de revocado. |
 | `questions.correct_value` (NUMERIC) sustituye a `correct_answer` (string) | Tipado correcto para modo PRECISION. |
@@ -177,15 +202,38 @@ erDiagram
 | `match_players.current_streak`, `best_streak_in_match`, `rounds_played` | Estado de partida singleplayer (Survival/Precision). |
 | `match_answers.is_correct` | Permite filtros y stats sin recalcular desviación. |
 | `matches.owner_user_id` | Identifica al dueño/host (singleplayer = único jugador). |
+| Nuevas tablas `achievements` y `user_achievements` | Catalogo de logros y desbloqueos unicos por usuario. |
+
+
+## Cambios introducidos en issue #100 (Moderación)
+
+| Cambio | Motivo |
+|---|---|
+| `question_reports.reason` cambia de `string` a `enum` | Valores controlados: `WRONG_ANSWER`, `OUTDATED`, `OFFENSIVE`, `OTHER`. |
+| `question_reports.comment TEXT` (nuevo) | Comentario libre opcional del jugador al reportar. |
+| `question_reports.resolved_by UUID FK(users)` (nuevo) | Quién resolvió el reporte. |
+| `question_reports.resolved_at TIMESTAMP` (nuevo) | Cuándo se resolvió. |
+| `question_reports.action enum` (nuevo) | Acción tomada al resolver: `DISMISS`, `EDIT_QUESTION`, `DELETE_QUESTION`. |
+| `questions.status` añade valor `FLAGGED` | Pregunta auto-flaggeada al acumular 5 reportes PENDING. Deja de servirse en partidas. |
+
+
+## Cambios introducidos en issue #97 (Pipeline Scrapy)
+
+| Cambio | Motivo |
+|---|---|
+| `questions.text_hash VARCHAR(64) UNIQUE` | Deduplicación idempotente en el pipeline Scrapy: SHA-256 del texto de la pregunta. Permite ejecutar el mismo spider varias veces sin crear duplicados. |
 
 ## Índices
 
 - `users(email)` UNIQUE, `users(username)` UNIQUE.
 - `questions(status, type, category)` compuesto (filtro frecuente para `/api/questions/random`).
+- `questions(text_hash)` UNIQUE (deduplicación del pipeline Scrapy).
 - `rankings(mode, score DESC)`.
 - `matchmaking_queue(mode, entered_at)`.
 - `match_rounds(match_id)`, `match_answers(round_id)`, `match_answers(user_id)`.
 - `refresh_tokens(user_id)`, `refresh_tokens(token_hash)`.
+- `achievements(achievement_key)` UNIQUE, `achievements(category)`.
+- `user_achievements(user_id, achievement_id)` PK compuesta.
 
 Por si no se visualiza bien, también se presentan las imágenes del esquema:
 
