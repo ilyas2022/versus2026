@@ -80,4 +80,63 @@ export interface PlayerStats {
   bestStreak: number;
   currentStreak: number;
   avgDeviation: number | null;
+  avgScore: number | null;
+}
+
+export interface PlayerStatsOverview {
+  byMode: PlayerStats[];
+  favoriteMode: GameMode | null;
+  totalPlayTimeSeconds: number;
+}
+
+export interface OpponentSummary {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+}
+
+export interface MatchHistoryItem {
+  id: string;
+  mode: GameMode;
+  result: 'WIN' | 'LOSS' | 'DRAW' | 'ABANDONED' | null;
+  score: number;
+  bestStreak: number;
+  livesRemaining: number;
+  roundsPlayed: number;
+  finishedAt: string;
+  opponent: OpponentSummary | null;
+}
+
+export interface RoundDetail {
+  roundNumber: number;
+  questionId: string;
+  questionText: string;
+  correct: boolean;
+  answerGiven: string;
+  deviation: number | null;
+}
+
+export interface MatchDetail {
+  id: string;
+  mode: GameMode;
+  createdAt: string;
+  finishedAt: string;
+  players: {
+    userId: string;
+    username: string;
+    score: number;
+    livesRemaining: number;
+    bestStreakInMatch: number;
+    result: 'WIN' | 'LOSS' | 'DRAW' | 'ABANDONED' | null;
+  }[];
+  rounds: RoundDetail[];
+}
+
+export interface PagedResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  last: boolean;
 }

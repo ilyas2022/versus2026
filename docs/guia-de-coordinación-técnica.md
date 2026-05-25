@@ -405,7 +405,7 @@ Defaults: **3 vidas iniciales, 15s/pregunta (10s con TIME_BOMB), 10 rondas máxi
 ---
  
 ## 📊 Módulo 6 — STATS & RANKING
-> Issues: #54, #76, #77, #78, #79
+> Issues: #54, #76, #77, #78, #79, #96
  
 Historial de partidas, estadísticas personales y ranking global.
  
@@ -413,13 +413,42 @@ Historial de partidas, estadísticas personales y ranking global.
  
 | Método | Ruta | Descripción | Issues |
 |--------|------|-------------|--------|
-| `GET` | `/api/stats/me` | Estadísticas del usuario autenticado | #77 |
-| `GET` | `/api/stats/me?mode=SURVIVAL` | Filtradas por modo | #77 |
-| `GET` | `/api/stats/me/history` | Historial de partidas | #76 |
+| `GET` | `/api/stats/me` | Resumen de stats en todos los modos (overview) | #77, #96 |
+| `GET` | `/api/stats/me?mode=SURVIVAL` | Stats filtradas por modo | #77 |
+| `GET` | `/api/users/me/history` | Historial paginado de partidas | #76, #96 |
+| `GET` | `/api/users/me/history?mode=BINARY_DUEL` | Historial filtrado por modo | #96 |
+| `GET` | `/api/matches/{id}` | Detalle completo de una partida | #96 |
 | `GET` | `/api/ranking/:mode` | Top 100 de un modo | #78 |
 | `GET` | `/api/ranking/:mode/me` | Posición propia en el ranking | #78 |
  
-### Contrato de stats
+### Contrato de stats — overview (sin parámetro mode)
+ 
+```json
+GET /api/stats/me
+→ 200
+{
+  "byMode": [
+    {
+      "mode": "SURVIVAL",
+      "gamesPlayed": 42,
+      "gamesWon": 28,
+      "winRate": 66.6,
+      "bestStreak": 12,
+      "currentStreak": 3,
+      "avgDeviation": null,
+      "avgScore": 310
+    }
+  ],
+  "favoriteMode": "SURVIVAL",
+  "totalPlayTimeSeconds": 18450
+}
+```
+ 
+> `byMode` contiene una entrada por cada modo (SURVIVAL, PRECISION, BINARY_DUEL, PRECISION_DUEL, SABOTAGE).  
+> `favoriteMode` es el modo con más `gamesPlayed`, o `null` si el usuario nunca ha jugado.  
+> `totalPlayTimeSeconds` es la suma de segundos de todas las partidas FINISHED del usuario.
+ 
+### Contrato de stats — por modo
  
 ```json
 GET /api/stats/me?mode=SURVIVAL
@@ -431,11 +460,86 @@ GET /api/stats/me?mode=SURVIVAL
   "winRate": 66.6,
   "bestStreak": 12,
   "currentStreak": 3,
-  "avgDeviation": null
+  "avgDeviation": null,
+  "avgScore": 310
 }
 ```
  
-> `avgDeviation` solo aplica a modos numéricos (PRECISION, PRECISION_DUEL).
+> `avgDeviation` solo aplica a modos numéricos (PRECISION, PRECISION_DUEL).  
+> `avgScore` es el promedio de puntuación a lo largo de todas las partidas del modo; `null` si nunca se ha jugado.
+ 
+### Contrato de historial de partidas
+ 
+```json
+GET /api/users/me/history?page=0&size=20&mode=BINARY_DUEL
+→ 200
+{
+  "content": [
+    {
+      "id": "bbbb0000-0000-0000-0000-000000000002",
+      "mode": "BINARY_DUEL",
+      "result": "WIN",
+      "score": 480,
+      "bestStreak": 5,
+      "livesRemaining": 2,
+      "roundsPlayed": 10,
+      "finishedAt": "2025-05-07T14:22:00Z",
+      "opponent": {
+        "id": "cccc0000-0000-0000-0000-000000000003",
+        "username": "Rival",
+        "avatarUrl": "https://..."
+      }
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1,
+  "size": 20,
+  "number": 0
+}
+```
+ 
+> `opponent` es `null` en modos solitarios (SURVIVAL, PRECISION).  
+> El tamaño máximo de página es 50; valores superiores se clampean automáticamente.  
+> `mode` es un query param opcional; si se omite se devuelven partidas de todos los modos.
+ 
+### Contrato de detalle de partida
+ 
+```json
+GET /api/matches/{id}
+→ 200
+{
+  "id": "bbbb0000-0000-0000-0000-000000000002",
+  "mode": "PRECISION_DUEL",
+  "createdAt": "2025-05-07T14:10:00Z",
+  "finishedAt": "2025-05-07T14:22:00Z",
+  "players": [
+    {
+      "userId": "aaaa0000-0000-0000-0000-000000000001",
+      "username": "Player1",
+      "score": 480,
+      "livesRemaining": 2,
+      "bestStreakInMatch": 5,
+      "result": "WIN"
+    }
+  ],
+  "rounds": [
+    {
+      "roundNumber": 1,
+      "questionId": "dddd0000-0000-0000-0000-000000000004",
+      "questionText": "¿Cuántos seguidores tiene...?",
+      "correct": true,
+      "answerGiven": "4200000",
+      "deviation": 1.8
+    }
+  ]
+}
+
+→ 404  si la partida no existe
+→ 403  si el usuario autenticado no es jugador de esa partida
+```
+ 
+> `deviation` es `null` para modos no numéricos (BINARY_DUEL, SABOTAGE).  
+> `rounds` está ordenado por `roundNumber` ascendente y solo contiene las respuestas del usuario autenticado.
  
 ---
 
