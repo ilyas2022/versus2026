@@ -7,6 +7,7 @@ import com.versus.api.admin.dto.AdminUserResponse;
 import com.versus.api.common.exception.ApiException;
 import com.versus.api.common.exception.ErrorCode;
 import com.versus.api.match.repo.MatchRepository;
+import com.versus.api.moderation.ReportReason;
 import com.versus.api.moderation.ReportStatus;
 import com.versus.api.moderation.domain.QuestionReport;
 import com.versus.api.moderation.repo.QuestionReportRepository;
@@ -302,7 +303,7 @@ class AdminServiceTest {
             u.setCreatedAt(middle);
             QuestionReport report = QuestionReport.builder().id(UUID.randomUUID())
                     .questionId(UUID.randomUUID()).reportedBy(UUID.randomUUID())
-                    .reason("mal texto").status(ReportStatus.PENDING).createdAt(newest).build();
+                    .reason(ReportReason.OTHER).status(ReportStatus.PENDING).createdAt(newest).build();
 
             when(spiderRuns.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(run)));
             when(users.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(u)));

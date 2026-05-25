@@ -117,7 +117,7 @@ public class AdminService {
     }
 
     private AdminLogResponse toLogEntry(QuestionReport report) {
-        String reason = report.getReason() != null ? report.getReason() : "no reason given";
+        String reason = report.getReason() != null ? report.getReason().name() : "no reason given";
         return new AdminLogResponse(report.getCreatedAt(), "INFO",
                 "Question report submitted: " + reason);
     }
