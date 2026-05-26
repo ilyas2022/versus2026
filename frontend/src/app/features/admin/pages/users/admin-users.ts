@@ -1,25 +1,31 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { DatePipe } from '@angular/common';
+import { SlicePipe } from '@angular/common';
 import { AdminSidebarComponent } from '../../components/sidebar/sidebar';
 import { AdminService } from '../../../../core/services/admin.service';
-import { AdminUser, PageResponse } from '../../../../core/models/admin.models';
+import { AdminUser } from '../../../../core/models/admin.models';
+import { Role } from '../../../../core/models/auth.models';
 
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [AdminSidebarComponent, FormsModule, DatePipe],
+  imports: [AdminSidebarComponent, SlicePipe],
   templateUrl: './admin-users.html',
   styleUrl: '../dashboard/admin-dashboard.scss',
 })
 export class AdminUsers implements OnInit {
-  private readonly adminSvc = inject(AdminService);
+  private readonly adminService = inject(AdminService);
 
-  page = signal<PageResponse<AdminUser> | null>(null);
-  loading = signal(true);
+  users = signal<AdminUser[]>([]);
+  totalElements = signal(0);
+  totalPages = signal(0);
+  page = signal(0);
+  readonly size = 20;
+
   search = signal('');
-  roleFilter = signal('');
-  currentPage = signal(0);
+  roleFilter = signal<Role | null>(null);
+  activeFilter = signal<boolean | null>(null);
+
+  editingRoleId = signal<string | null>(null);
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -27,82 +33,83 @@ export class AdminUsers implements OnInit {
     this.load();
   }
 
-  onSearchChange(val: string): void {
-    this.search.set(val);
+  onSearch(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.search.set(value);
+    this.page.set(0);
     if (this.searchTimeout) clearTimeout(this.searchTimeout);
-    this.searchTimeout = setTimeout(() => {
-      this.currentPage.set(0);
-      this.load();
-    }, 400);
+    this.searchTimeout = setTimeout(() => this.load(), 300);
   }
 
-  onRoleChange(val: string): void {
-    this.roleFilter.set(val);
-    this.currentPage.set(0);
+  onRoleFilter(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.roleFilter.set(value ? (value as Role) : null);
+    this.page.set(0);
     this.load();
   }
 
-  private load(): void {
-    this.loading.set(true);
-    this.adminSvc
-      .getUsers(
-        this.currentPage(),
-        this.search() || undefined,
-        this.roleFilter() || undefined,
-      )
-      .subscribe({
-        next: (p) => {
-          this.page.set(p);
-          this.loading.set(false);
-        },
-        error: () => this.loading.set(false),
-      });
+  onActiveFilter(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.activeFilter.set(value === '' ? null : value === 'true');
+    this.page.set(0);
+    this.load();
   }
 
-  updateRole(user: AdminUser, role: string): void {
-    this.adminSvc.updateUserRole(user.id, role).subscribe({
-      next: (updated) => {
-        const p = this.page();
-        if (!p) return;
-        this.page.set({
-          ...p,
-          content: p.content.map((u) => (u.id === updated.id ? updated : u)),
-        });
-      },
-    });
+  goToPage(p: number): void {
+    this.page.set(p);
+    this.load();
   }
 
   toggleStatus(user: AdminUser): void {
-    this.adminSvc.updateUserStatus(user.id, !user.isActive).subscribe({
-      next: (updated) => {
-        const p = this.page();
-        if (!p) return;
-        this.page.set({
-          ...p,
-          content: p.content.map((u) => (u.id === updated.id ? updated : u)),
-        });
-      },
+    this.adminService.updateUserStatus(user.id, !user.isActive).subscribe(updated => {
+      this.users.update(list => list.map(u => u.id === updated.id ? updated : u));
     });
   }
 
-  roleColor(r: string): string {
-    return (
-      { ADMIN: 'var(--vs-accent-red)', MODERATOR: 'var(--vs-accent-gold)' }[
-        r
-      ] ?? 'var(--vs-accent-blue)'
-    );
+  startEditRole(userId: string): void {
+    this.editingRoleId.set(userId);
   }
 
-  roleBg(r: string): string {
-    return (
-      {
-        ADMIN: 'rgba(230,57,70,0.12)',
-        MODERATOR: 'rgba(244,197,66,0.12)',
-      }[r] ?? 'rgba(67,97,238,0.12)'
-    );
+  applyRole(user: AdminUser, event: Event): void {
+    const role = (event.target as HTMLSelectElement).value as Role;
+    this.editingRoleId.set(null);
+    if (role === user.role) return;
+    this.adminService.updateUserRole(user.id, role).subscribe(updated => {
+      this.users.update(list => list.map(u => u.id === updated.id ? updated : u));
+    });
   }
 
-  initials(name: string): string {
-    return name.slice(0, 2).toUpperCase();
+  cancelEditRole(): void {
+    this.editingRoleId.set(null);
+  }
+
+  roleColor(r: Role): string {
+    const colors: Partial<Record<Role, string>> = { ADMIN: 'var(--vs-accent-red)', MODERATOR: 'var(--vs-accent-gold)' };
+    return colors[r] ?? 'var(--vs-accent-blue)';
+  }
+
+  roleBg(r: Role): string {
+    const bgs: Partial<Record<Role, string>> = { ADMIN: 'rgba(230,57,70,0.12)', MODERATOR: 'rgba(244,197,66,0.12)' };
+    return bgs[r] ?? 'rgba(67,97,238,0.12)';
+  }
+
+  initials(name: string): string { return name.slice(0, 2).toUpperCase(); }
+
+  get pages(): number[] {
+    return Array.from({ length: this.totalPages() }, (_, i) => i);
+  }
+
+  private load(): void {
+    this.adminService.listUsers({
+      page: this.page(),
+      size: this.size,
+      search: this.search() || undefined,
+      role: this.roleFilter() ?? undefined,
+      active: this.activeFilter() ?? undefined,
+    }).subscribe(result => {
+      this.users.set(result.items);
+      this.totalElements.set(result.totalElements);
+      this.totalPages.set(result.totalPages);
+    });
   }
 }

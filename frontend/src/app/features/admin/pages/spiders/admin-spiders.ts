@@ -77,18 +77,11 @@ export class AdminSpiders implements OnInit {
   }
 
   pillClass(status: string): string {
-    return (
-      { IDLE: 'vs-pill--mute', RUNNING: 'vs-pill--info', FAILED: 'vs-pill--err' }[
-        status
-      ] ?? 'vs-pill--mute'
-    );
+    return { IDLE: 'vs-pill--mute', RUNNING: 'vs-pill--info', FAILED: 'vs-pill--err' }[status] ?? 'vs-pill--mute';
   }
 
   pillLabel(status: string): string {
-    return (
-      { IDLE: 'INACTIVA', RUNNING: 'EJECUTANDO', FAILED: 'CAÍDA' }[status] ??
-      status
-    );
+    return { IDLE: 'INACTIVA', RUNNING: 'EJECUTANDO', FAILED: 'CAÍDA' }[status] ?? status;
   }
 
   dotClass(status: string): string {

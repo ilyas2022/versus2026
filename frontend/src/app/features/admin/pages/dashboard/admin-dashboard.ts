@@ -1,10 +1,10 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { DatePipe } from '@angular/common';
 import { AdminSidebarComponent } from '../../components/sidebar/sidebar';
 import { AdminService } from '../../../../core/services/admin.service';
-import { AdminSpider, AdminStats } from '../../../../core/models/admin.models';
+import { AdminLog, AdminSpider, AdminStats } from '../../../../core/models/admin.models';
 
-interface Kpi {
+interface KpiCard {
   label: string;
   num: string;
   delta: string;
@@ -16,17 +16,20 @@ interface Kpi {
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [AdminSidebarComponent, RouterLink],
+  imports: [AdminSidebarComponent, DatePipe],
   templateUrl: './admin-dashboard.html',
   styleUrl: './admin-dashboard.scss',
 })
 export class AdminDashboard implements OnInit {
-  private readonly adminSvc = inject(AdminService);
+  private readonly adminService = inject(AdminService);
 
-  kpis = signal<Kpi[]>([]);
+  kpis = signal<KpiCard[]>([]);
   spiders = signal<AdminSpider[]>([]);
+  logs = signal<AdminLog[]>([]);
   loading = signal(true);
+  readonly today = new Date();
 
+  // TODO: depende de Stats avanzado por modo
   modes = [
     { mode: 'Supervivencia',   pct: 42, color: 'var(--vs-accent-red)'    },
     { mode: 'Precisión',       pct: 24, color: 'var(--vs-accent-blue)'   },
@@ -36,31 +39,43 @@ export class AdminDashboard implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.adminSvc.getStats().subscribe({
+    this.loadData();
+  }
+
+  reload(): void {
+    this.loadData();
+  }
+
+  private loadData(): void {
+    this.loading.set(true);
+    this.adminService.stats().subscribe({
       next: (s) => {
         this.kpis.set(this.buildKpis(s));
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
     });
-    this.adminSvc.getSpiders().subscribe({
+    this.adminService.getSpiders().subscribe({
       next: (list) => this.spiders.set(list),
+    });
+    this.adminService.logs(20).subscribe({
+      next: (entries) => this.logs.set(entries),
     });
   }
 
-  private buildKpis(s: AdminStats): Kpi[] {
+  private buildKpis(s: AdminStats): KpiCard[] {
     return [
       {
         label: 'Usuarios activos',
         num: s.activeUsers.toLocaleString('es-ES'),
-        delta: `${s.totalUsers.toLocaleString('es-ES')} en total`,
+        delta: `de ${s.totalUsers.toLocaleString('es-ES')} totales`,
         up: true,
         color: 'var(--vs-accent-green)',
         spark: [10, 12, 11, 14, 13, 17, 19, 18, 22, 24],
       },
       {
         label: 'Partidas hoy',
-        num: s.gamesToday.toLocaleString('es-ES'),
+        num: s.matchesToday.toLocaleString('es-ES'),
         delta: 'partidas hoy',
         up: true,
         color: 'var(--vs-accent-blue)',
@@ -85,25 +100,23 @@ export class AdminDashboard implements OnInit {
     ];
   }
 
+  sparkPoints(data: number[]): string {
+    const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
+    return data
+      .map((v, i) => `${(i / (data.length - 1)) * 80},${30 - ((v - min) / range) * 26 - 2}`)
+      .join(' ');
+  }
+
   pillClass(status: string): string {
-    return (
-      { IDLE: 'vs-pill--mute', RUNNING: 'vs-pill--info', FAILED: 'vs-pill--err' }[
-        status
-      ] ?? 'vs-pill--mute'
-    );
+    return { IDLE: 'vs-pill--mute', RUNNING: 'vs-pill--info', FAILED: 'vs-pill--err' }[status] ?? 'vs-pill--mute';
   }
 
   pillLabel(status: string): string {
-    return (
-      { IDLE: 'INACTIVA', RUNNING: 'EJECUTANDO', FAILED: 'CAÍDA' }[status] ??
-      status
-    );
+    return { IDLE: 'INACTIVA', RUNNING: 'EJECUTANDO', FAILED: 'CAÍDA' }[status] ?? status;
   }
 
   dotClass(status: string): string {
-    return (
-      { IDLE: 'idle', RUNNING: 'ok', FAILED: 'err' }[status] ?? 'idle'
-    );
+    return { IDLE: 'idle', RUNNING: 'ok', FAILED: 'err' }[status] ?? 'idle';
   }
 
   lastRunLabel(spider: AdminSpider): string {
@@ -111,19 +124,10 @@ export class AdminDashboard implements OnInit {
     const d = new Date(spider.lastRunAt);
     const diff = Math.floor((Date.now() - d.getTime()) / 60000);
     if (diff < 60) return `hace ${diff} min`;
-    const h = Math.floor(diff / 60);
-    return `hace ${h} h`;
+    return `hace ${Math.floor(diff / 60)} h`;
   }
 
-  sparkPoints(data: number[]): string {
-    const max = Math.max(...data),
-      min = Math.min(...data),
-      range = max - min || 1;
-    return data
-      .map(
-        (v, i) =>
-          `${(i / (data.length - 1)) * 80},${30 - ((v - min) / range) * 26 - 2}`,
-      )
-      .join(' ');
+  logClass(level: string): string {
+    return { INFO: 'ok', WARN: 'warn', ERR: 'err' }[level] ?? 'ok';
   }
 }

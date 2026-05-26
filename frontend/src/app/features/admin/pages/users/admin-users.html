@@ -6,119 +6,116 @@
     <div class="vs-admin__head">
       <div>
         <h1>USUARIOS</h1>
-        <div class="vs-admin__head-meta">
-          @if (page()) {
-            {{ page()!.totalElements }} usuarios encontrados
-          }
-        </div>
+        <div class="vs-admin__head-meta">{{ totalElements() }} usuarios</div>
       </div>
     </div>
 
     <!-- Filtros -->
     <div style="display: flex; gap: 10px; align-items: center">
-      <input class="vs-input"
-             placeholder="Buscar por usuario o email…"
+      <input class="vs-input" placeholder="Buscar por usuario o email…"
              style="flex: 1; max-width: 360px; font-size: 13px"
-             [ngModel]="search()"
-             (ngModelChange)="onSearchChange($event)" />
-
-      <select class="vs-input"
-              style="width: 160px; font-size: 12px"
-              [ngModel]="roleFilter()"
-              (ngModelChange)="onRoleChange($event)">
+             (input)="onSearch($event)" />
+      <select class="vs-input" style="width: 150px; font-size: 12px" (change)="onRoleFilter($event)">
         <option value="">Todos los roles</option>
         <option value="PLAYER">Jugador</option>
         <option value="MODERATOR">Moderador</option>
         <option value="ADMIN">Admin</option>
       </select>
-
-      @if (page()) {
-        <span class="vs-pill vs-pill--mute">
-          {{ page()!.content.length }} / {{ page()!.totalElements }}
-        </span>
-      }
+      <select class="vs-input" style="width: 150px; font-size: 12px" (change)="onActiveFilter($event)">
+        <option value="">Cualquier estado</option>
+        <option value="true">Activo</option>
+        <option value="false">Baneado</option>
+      </select>
+      <div style="flex: 1"></div>
+      <span class="vs-pill vs-pill--mute">{{ users().length }} / {{ totalElements() }}</span>
     </div>
 
     <!-- Tabla -->
     <div class="vs-card" style="padding: 0">
-
-      @if (loading()) {
-        <div style="padding: 20px; color: var(--vs-text-muted); font-size: 13px">Cargando usuarios…</div>
-      }
-
-      @if (!loading() && page()) {
-        <table class="vs-table">
-          <thead>
+      <table class="vs-table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Email</th>
+            <th>Rol</th>
+            <th>Alta</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of users(); track u.id) {
             <tr>
-              <th>Usuario</th>
-              <th>Rol</th>
-              <th>Alta</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (u of page()!.content; track u.id) {
-              <tr>
-                <td>
-                  <div class="vs-user-cell">
-                    <div class="vs-avatar" style="width: 30px; height: 30px; font-size: 11px">
-                      {{ initials(u.username) }}
-                    </div>
-                    <div>
-                      <div style="font-weight: 600; font-size: 13px">{{ u.username }}</div>
-                      <div style="font-size: 11px; color: var(--vs-text-muted)">{{ u.email }}</div>
-                    </div>
+              <td>
+                <div class="vs-user-cell">
+                  <div class="vs-avatar" style="width: 30px; height: 30px; font-size: 11px">
+                    {{ initials(u.username) }}
                   </div>
-                </td>
-                <td>
+                  <div style="font-weight: 600; font-size: 13px">{{ u.username }}</div>
+                </div>
+              </td>
+              <td style="font-size: 12px; color: var(--vs-text-muted)">{{ u.email }}</td>
+              <td>
+                @if (editingRoleId() === u.id) {
+                  <select class="vs-input" style="font-size: 12px; padding: 4px 8px"
+                          (change)="applyRole(u, $event)"
+                          (blur)="cancelEditRole()">
+                    <option value="PLAYER" [selected]="u.role === 'PLAYER'">Jugador</option>
+                    <option value="MODERATOR" [selected]="u.role === 'MODERATOR'">Moderador</option>
+                    <option value="ADMIN" [selected]="u.role === 'ADMIN'">Admin</option>
+                  </select>
+                } @else {
                   <span class="vs-pill"
                         [style.color]="roleColor(u.role)"
-                        [style.background]="roleBg(u.role)">
+                        [style.background]="roleBg(u.role)"
+                        style="cursor: pointer"
+                        (click)="startEditRole(u.id)"
+                        title="Click para cambiar rol">
                     <span class="vs-pill__dot"></span>{{ u.role }}
                   </span>
-                </td>
-                <td style="color: var(--vs-text-muted); font-size: 12px">
-                  {{ u.createdAt | date:'dd/MM/yy' }}
-                </td>
-                <td>
-                  @if (u.isActive) {
-                    <span class="vs-pill vs-pill--ok"><span class="vs-pill__dot"></span>ACTIVO</span>
-                  } @else {
-                    <span class="vs-pill vs-pill--err"><span class="vs-pill__dot"></span>SUSPENDIDO</span>
-                  }
-                </td>
-                <td>
-                  <div style="display: flex; gap: 6px">
-                    <select class="vs-input"
-                            style="font-size: 11px; padding: 4px 6px; width: 130px"
-                            [ngModel]="u.role"
-                            (ngModelChange)="updateRole(u, $event)">
-                      <option value="PLAYER">Jugador</option>
-                      <option value="MODERATOR">Moderador</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
-                    @if (u.isActive) {
-                      <button class="btn btn--danger btn--sm"
-                              style="padding: 4px 10px; font-size: 10px"
-                              (click)="toggleStatus(u)">SUSPENDER</button>
-                    } @else {
-                      <button class="btn btn--ghost btn--sm"
-                              style="padding: 4px 10px; font-size: 10px"
-                              (click)="toggleStatus(u)">ACTIVAR</button>
-                    }
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-
-        @if (page()!.content.length === 0) {
-          <div style="padding: 20px; color: var(--vs-text-muted); font-size: 13px">No se encontraron usuarios.</div>
-        }
-      }
+                }
+              </td>
+              <td style="color: var(--vs-text-muted); font-size: 12px">{{ u.createdAt | slice:0:10 }}</td>
+              <td>
+                @if (u.isActive) {
+                  <span class="vs-pill vs-pill--ok"><span class="vs-pill__dot"></span>ACTIVO</span>
+                } @else {
+                  <span class="vs-pill vs-pill--err"><span class="vs-pill__dot"></span>BANEADO</span>
+                }
+              </td>
+              <td>
+                <button class="btn btn--danger btn--sm"
+                        style="padding: 4px 10px; font-size: 10px"
+                        (click)="toggleStatus(u)">
+                  {{ u.isActive ? 'BAN' : 'ACTIVAR' }}
+                </button>
+              </td>
+            </tr>
+          }
+          @if (users().length === 0) {
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--vs-text-muted); padding: 24px">
+                Sin resultados.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
     </div>
+
+    <!-- Paginación -->
+    @if (totalPages() > 1) {
+      <div style="display: flex; gap: 6px; justify-content: center; margin-top: 12px">
+        @for (p of pages; track p) {
+          <button class="btn btn--sm"
+                  [class.btn--primary]="page() === p"
+                  [class.btn--ghost]="page() !== p"
+                  (click)="goToPage(p)">
+            {{ p + 1 }}
+          </button>
+        }
+      </div>
+    }
 
   </div>
 </div>
