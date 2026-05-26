@@ -6,95 +6,118 @@
     <div class="vs-admin__head">
       <div>
         <h1>USUARIOS</h1>
-        <div class="vs-admin__head-meta">14 287 usuarios · 312 baneados · 8 moderadores</div>
-      </div>
-      <div style="display: flex; gap: 8px">
-        <button class="btn btn--ghost btn--sm">EXPORTAR CSV</button>
-        <button class="btn btn--primary btn--sm">+ INVITAR</button>
+        <div class="vs-admin__head-meta">
+          @if (page()) {
+            {{ page()!.totalElements }} usuarios encontrados
+          }
+        </div>
       </div>
     </div>
 
     <!-- Filtros -->
     <div style="display: flex; gap: 10px; align-items: center">
-      <input class="vs-input" placeholder="Buscar por usuario o email…"
-             style="flex: 1; max-width: 360px; font-size: 13px" />
-      <select class="vs-input" style="width: 150px; font-size: 12px">
-        <option>Todos los roles</option>
-        <option>Jugador</option>
-        <option>Moderador</option>
-        <option>Admin</option>
+      <input class="vs-input"
+             placeholder="Buscar por usuario o email…"
+             style="flex: 1; max-width: 360px; font-size: 13px"
+             [ngModel]="search()"
+             (ngModelChange)="onSearchChange($event)" />
+
+      <select class="vs-input"
+              style="width: 160px; font-size: 12px"
+              [ngModel]="roleFilter()"
+              (ngModelChange)="onRoleChange($event)">
+        <option value="">Todos los roles</option>
+        <option value="PLAYER">Jugador</option>
+        <option value="MODERATOR">Moderador</option>
+        <option value="ADMIN">Admin</option>
       </select>
-      <select class="vs-input" style="width: 150px; font-size: 12px">
-        <option>Cualquier estado</option>
-        <option>Activo</option>
-        <option>Baneado</option>
-      </select>
-      <div style="flex: 1"></div>
-      <span class="vs-pill vs-pill--mute">6 / 14 287</span>
+
+      @if (page()) {
+        <span class="vs-pill vs-pill--mute">
+          {{ page()!.content.length }} / {{ page()!.totalElements }}
+        </span>
+      }
     </div>
 
     <!-- Tabla -->
     <div class="vs-card" style="padding: 0">
-      <table class="vs-table">
-        <thead>
-          <tr>
-            <th><input type="checkbox" /></th>
-            <th>Usuario</th>
-            <th>Rol</th>
-            <th>Nivel</th>
-            <th>Partidas</th>
-            <th>Alta</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (u of users; track u.name) {
+
+      @if (loading()) {
+        <div style="padding: 20px; color: var(--vs-text-muted); font-size: 13px">Cargando usuarios…</div>
+      }
+
+      @if (!loading() && page()) {
+        <table class="vs-table">
+          <thead>
             <tr>
-              <td><input type="checkbox" /></td>
-              <td>
-                <div class="vs-user-cell">
-                  <div class="vs-avatar" style="width: 30px; height: 30px; font-size: 11px">
-                    {{ initials(u.name) }}
-                  </div>
-                  <div>
-                    <div style="font-weight: 600; font-size: 13px">{{ u.name }}</div>
-                    <div style="font-size: 11px; color: var(--vs-text-muted)">{{ u.email }}</div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <span class="vs-pill"
-                      [style.color]="roleColor(u.role)"
-                      [style.background]="roleBg(u.role)">
-                  <span class="vs-pill__dot"></span>{{ u.role.toUpperCase() }}
-                </span>
-              </td>
-              <td class="vs-mono">{{ u.level }}</td>
-              <td class="vs-mono">{{ u.games }}</td>
-              <td style="color: var(--vs-text-muted); font-size: 12px">{{ u.joined }}</td>
-              <td>
-                @if (u.state === 'ok') {
-                  <span class="vs-pill vs-pill--ok"><span class="vs-pill__dot"></span>ACTIVO</span>
-                }
-                @if (u.state === 'warn') {
-                  <span class="vs-pill vs-pill--warn"><span class="vs-pill__dot"></span>AVISO</span>
-                }
-                @if (u.state === 'banned') {
-                  <span class="vs-pill vs-pill--err"><span class="vs-pill__dot"></span>BANEADO</span>
-                }
-              </td>
-              <td>
-                <div style="display: flex; gap: 6px">
-                  <button class="btn btn--ghost btn--sm" style="padding: 4px 10px; font-size: 10px">VER</button>
-                  <button class="btn btn--ghost btn--sm" style="padding: 4px 10px; font-size: 10px">EDITAR</button>
-                  <button class="btn btn--danger btn--sm" style="padding: 4px 10px; font-size: 10px">BAN</button>
-                </div>
-              </td>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Alta</th>
+              <th>Estado</th>
+              <th>Acciones</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (u of page()!.content; track u.id) {
+              <tr>
+                <td>
+                  <div class="vs-user-cell">
+                    <div class="vs-avatar" style="width: 30px; height: 30px; font-size: 11px">
+                      {{ initials(u.username) }}
+                    </div>
+                    <div>
+                      <div style="font-weight: 600; font-size: 13px">{{ u.username }}</div>
+                      <div style="font-size: 11px; color: var(--vs-text-muted)">{{ u.email }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="vs-pill"
+                        [style.color]="roleColor(u.role)"
+                        [style.background]="roleBg(u.role)">
+                    <span class="vs-pill__dot"></span>{{ u.role }}
+                  </span>
+                </td>
+                <td style="color: var(--vs-text-muted); font-size: 12px">
+                  {{ u.createdAt | date:'dd/MM/yy' }}
+                </td>
+                <td>
+                  @if (u.isActive) {
+                    <span class="vs-pill vs-pill--ok"><span class="vs-pill__dot"></span>ACTIVO</span>
+                  } @else {
+                    <span class="vs-pill vs-pill--err"><span class="vs-pill__dot"></span>SUSPENDIDO</span>
+                  }
+                </td>
+                <td>
+                  <div style="display: flex; gap: 6px">
+                    <select class="vs-input"
+                            style="font-size: 11px; padding: 4px 6px; width: 130px"
+                            [ngModel]="u.role"
+                            (ngModelChange)="updateRole(u, $event)">
+                      <option value="PLAYER">Jugador</option>
+                      <option value="MODERATOR">Moderador</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                    @if (u.isActive) {
+                      <button class="btn btn--danger btn--sm"
+                              style="padding: 4px 10px; font-size: 10px"
+                              (click)="toggleStatus(u)">SUSPENDER</button>
+                    } @else {
+                      <button class="btn btn--ghost btn--sm"
+                              style="padding: 4px 10px; font-size: 10px"
+                              (click)="toggleStatus(u)">ACTIVAR</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (page()!.content.length === 0) {
+          <div style="padding: 20px; color: var(--vs-text-muted); font-size: 13px">No se encontraron usuarios.</div>
+        }
+      }
     </div>
 
   </div>

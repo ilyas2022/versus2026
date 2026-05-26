@@ -6,29 +6,29 @@
     <div class="vs-admin__head">
       <div>
         <h1>RESUMEN GENERAL</h1>
-        <div class="vs-admin__head-meta">Plataforma · 28 abr 2026 · 10:32</div>
-      </div>
-      <div style="display: flex; gap: 8px">
-        <button class="btn btn--ghost btn--sm">REFRESCAR</button>
-        <button class="btn btn--primary btn--sm">EXPORTAR</button>
+        <div class="vs-admin__head-meta">Plataforma · Panel de administración</div>
       </div>
     </div>
 
-    <!-- KPIs -->
-    <div class="vs-admin__kpis">
-      @for (k of kpis; track k.label) {
-        <div class="vs-kpi">
-          <div class="vs-kpi__label">{{ k.label }}</div>
-          <div class="vs-kpi__num" [style.color]="k.label === 'Reportes pendientes' ? 'var(--vs-accent-red)' : null">
-            {{ k.num }}
+    @if (loading()) {
+      <div style="color: var(--vs-text-muted); font-size: 13px">Cargando estadísticas…</div>
+    } @else {
+      <!-- KPIs -->
+      <div class="vs-admin__kpis">
+        @for (k of kpis(); track k.label) {
+          <div class="vs-kpi">
+            <div class="vs-kpi__label">{{ k.label }}</div>
+            <div class="vs-kpi__num" [style.color]="!k.up ? 'var(--vs-accent-red)' : null">
+              {{ k.num }}
+            </div>
+            <div class="vs-kpi__delta" [class.up]="k.up" [class.down]="!k.up">{{ k.delta }}</div>
+            <svg class="vs-kpi__spark" viewBox="0 0 80 30" preserveAspectRatio="none">
+              <polyline class="vs-spark-line" [attr.points]="sparkPoints(k.spark)" [style.stroke]="k.color" />
+            </svg>
           </div>
-          <div class="vs-kpi__delta" [class.up]="k.up" [class.down]="!k.up">{{ k.delta }}</div>
-          <svg class="vs-kpi__spark" viewBox="0 0 80 30" preserveAspectRatio="none">
-            <polyline class="vs-spark-line" [attr.points]="sparkPoints(k.spark)" [style.stroke]="k.color" />
-          </svg>
-        </div>
-      }
-    </div>
+        }
+      </div>
+    }
 
     <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px">
 
@@ -36,20 +36,23 @@
       <div class="vs-card" style="padding: 0">
         <div style="padding: 16px 20px; border-bottom: 1px solid var(--vs-border); display: flex; justify-content: space-between; align-items: center">
           <div class="vs-section-title" style="margin: 0">Spiders activos</div>
-          <button class="btn btn--ghost btn--sm">VER TODOS</button>
+          <a class="btn btn--ghost btn--sm" routerLink="/admin/spiders" style="text-decoration: none">VER TODOS</a>
         </div>
-        @for (s of spiders; track s.name) {
+        @for (s of spiders(); track s.name) {
           <div class="vs-spider-row" style="grid-template-columns: 24px 1fr 90px 110px">
-            <span class="vs-status-dot" [class]="s.stat"></span>
+            <span class="vs-status-dot" [class]="dotClass(s.status)"></span>
             <div>
               <div class="vs-spider-row__name">{{ s.name }}</div>
-              <div class="vs-spider-row__url">{{ s.last }}</div>
+              <div class="vs-spider-row__url">{{ lastRunLabel(s) }}</div>
             </div>
-            <div class="vs-mono" style="font-size: 12px">{{ s.q }} q.</div>
-            <span class="vs-pill" [class]="pillClass(s.stat)">
-              <span class="vs-pill__dot"></span>{{ pillLabel(s.stat) }}
+            <div class="vs-mono" style="font-size: 12px">{{ s.lastRun?.questionsInserted ?? 0 }} q.</div>
+            <span class="vs-pill" [class]="pillClass(s.status)">
+              <span class="vs-pill__dot"></span>{{ pillLabel(s.status) }}
             </span>
           </div>
+        }
+        @if (spiders().length === 0) {
+          <div style="padding: 20px; color: var(--vs-text-muted); font-size: 13px">Sin spiders registrados.</div>
         }
       </div>
 
@@ -69,22 +72,6 @@
         }
       </div>
 
-    </div>
-
-    <!-- Eventos recientes -->
-    <div class="vs-card" style="padding: 0">
-      <div style="padding: 16px 20px; border-bottom: 1px solid var(--vs-border)">
-        <div class="vs-section-title" style="margin: 0">Eventos recientes</div>
-      </div>
-      <div class="vs-run-log" style="border: none; border-radius: 0; max-height: none">
-        @for (l of logs; track l.ts) {
-          <div>
-            <span class="ts">{{ l.ts }}</span>
-            <span [class]="l.cls">[{{ l.cls.toUpperCase() }}]</span>
-            {{ l.msg }}
-          </div>
-        }
-      </div>
     </div>
 
   </div>
