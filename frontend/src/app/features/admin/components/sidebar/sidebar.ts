@@ -2,6 +2,7 @@ import { Component, inject, input } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../../../core/services/auth.service';
 import { Role } from '../../../../core/models/auth.models';
+import { AvatarComponent } from '../../../../shared/components/ui/avatar/avatar.component';
 
 export type AdminNavKey = 'dash' | 'spiders' | 'reports' | 'users';
 
@@ -14,7 +15,7 @@ interface NavItem {
 @Component({
   selector: 'app-admin-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, AvatarComponent],
   templateUrl: './sidebar.html',
 })
 export class AdminSidebarComponent {

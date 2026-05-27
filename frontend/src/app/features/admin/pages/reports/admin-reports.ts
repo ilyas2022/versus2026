@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { DatePipe, SlicePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { AdminSidebarComponent } from '../../components/sidebar/sidebar';
 import { AdminService } from '../../../../core/services/admin.service';
 import { AdminReport, PageResponse } from '../../../../core/models/admin.models';
@@ -9,7 +9,7 @@ type StatusFilter = 'PENDING' | 'DISMISSED' | 'RESOLVED' | '';
 @Component({
   selector: 'app-admin-reports',
   standalone: true,
-  imports: [AdminSidebarComponent, DatePipe, SlicePipe],
+  imports: [AdminSidebarComponent, DatePipe],
   templateUrl: './admin-reports.html',
   styleUrl: '../dashboard/admin-dashboard.scss',
 })
