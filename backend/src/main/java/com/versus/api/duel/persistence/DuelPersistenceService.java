@@ -144,6 +144,7 @@ public class DuelPersistenceService {
     }
 
     private static String answerGivenOf(PlayerRoundOutcome o) {
+        if (o.answerText() != null) return o.answerText();
         if (o.optionGiven() != null) return o.optionGiven().toString();
         if (o.valueGiven() != null) return o.valueGiven().toPlainString();
         return null;

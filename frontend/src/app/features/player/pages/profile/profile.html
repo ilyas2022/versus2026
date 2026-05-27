@@ -35,6 +35,7 @@
         <div>
           <div class="vs-section-title">Singleplayer</div>
           <div class="vs-card" style="padding: 0">
+            <div class="vs-table-wrap">
             <table class="vs-table">
               <thead>
                 <tr>
@@ -55,6 +56,7 @@
                 }
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -62,6 +64,7 @@
         <div>
           <div class="vs-section-title">Multijugador</div>
           <div class="vs-card" style="padding: 0">
+            <div class="vs-table-wrap">
             <table class="vs-table">
               <thead>
                 <tr>
@@ -81,6 +84,7 @@
                 }
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -158,6 +162,7 @@
                 Aún no has jugado ninguna partida.
               </div>
             } @else {
+              <div class="vs-table-wrap">
               <table class="vs-table">
                 <thead>
                   <tr>
@@ -192,6 +197,7 @@
                   }
                 </tbody>
               </table>
+              </div>
 
               @if (historyLoading()) {
                 <div style="padding: 12px; text-align: center; color: var(--vs-text-muted); font-size: 13px">Cargando...</div>

@@ -1,5 +1,7 @@
 package com.versus.api.match;
 
+import com.versus.api.cards.domain.Card;
+import com.versus.api.cards.repo.CardRepository;
 import com.versus.api.common.exception.ApiException;
 import com.versus.api.match.domain.Match;
 import com.versus.api.match.domain.MatchAnswer;
@@ -26,10 +28,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -53,6 +58,7 @@ public class MatchService {
     private final MatchRoundRepository matchRounds;
     private final MatchAnswerRepository matchAnswers;
     private final QuestionRepository questions;
+    private final CardRepository cardRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate broker;
     @Autowired(required = false)
@@ -105,9 +111,21 @@ public class MatchService {
         List<MatchRound> rounds = matchRounds.findByMatchIdOrderByRoundNumber(matchId);
         List<UUID> roundIds = rounds.stream().map(MatchRound::getId).toList();
 
-        Map<UUID, Question> questionMap = questions.findAllById(
-                        rounds.stream().map(MatchRound::getQuestionId).toList())
+        List<UUID> questionIds = rounds.stream()
+                .map(MatchRound::getQuestionId)
+                .filter(Objects::nonNull)
+                .toList();
+        Map<UUID, Question> questionMap = questions.findAllById(questionIds)
                 .stream().collect(Collectors.toMap(Question::getId, q -> q));
+
+        Set<UUID> cardIds = new HashSet<>();
+        for (MatchRound r : rounds) {
+            if (r.getCardAId() != null) cardIds.add(r.getCardAId());
+            if (r.getCardBId() != null) cardIds.add(r.getCardBId());
+        }
+        Map<UUID, Card> cardMap = cardIds.isEmpty() ? Map.of() :
+                cardRepository.findAllById(cardIds).stream()
+                        .collect(Collectors.toMap(Card::getId, c -> c));
 
         List<MatchAnswer> userAnswers = matchAnswers.findByRoundIdIn(roundIds).stream()
                 .filter(a -> userId.equals(a.getUserId()))
@@ -115,19 +133,31 @@ public class MatchService {
         Map<UUID, MatchAnswer> answerByRound = userAnswers.stream()
                 .collect(Collectors.toMap(MatchAnswer::getRoundId, a -> a));
 
-        List<RoundDetailResponse> roundDetails = rounds.stream()
-                .map(round -> {
-                    MatchAnswer answer = answerByRound.get(round.getId());
-                    Question q = questionMap.get(round.getQuestionId());
-                    String questionText = q != null ? q.getText() : "";
-                    boolean correct = answer != null && Boolean.TRUE.equals(answer.getIsCorrect());
-                    String answerGiven = answer != null && answer.getAnswerGiven() != null
-                            ? answer.getAnswerGiven() : "";
-                    Double deviation = answer != null ? answer.getDeviation() : null;
-                    return new RoundDetailResponse(round.getRoundNumber(), round.getQuestionId(),
-                            questionText, correct, answerGiven, deviation);
-                })
-                .toList();
+        List<RoundDetailResponse> roundDetails = new ArrayList<>();
+        for (MatchRound round : rounds) {
+            MatchAnswer answer = answerByRound.get(round.getId());
+            String questionText;
+            if (round.getQuestionId() != null) {
+                Question q = questionMap.get(round.getQuestionId());
+                questionText = q != null ? q.getText() : "";
+            } else if (round.getCardAId() != null) {
+                Card a = cardMap.get(round.getCardAId());
+                Card b = round.getCardBId() != null ? cardMap.get(round.getCardBId()) : null;
+                String nameA = a != null ? a.getNombre() : "?";
+                String nameB = b != null ? b.getNombre() : "?";
+                boolean inverse = a != null && a.isInverse();
+                questionText = (inverse ? "¿Cuál tiene el valor más bajo? " : "¿Cuál tiene el valor más alto? ")
+                        + nameA + " vs " + nameB;
+            } else {
+                questionText = "";
+            }
+            boolean correct = answer != null && Boolean.TRUE.equals(answer.getIsCorrect());
+            String answerGiven = answer != null && answer.getAnswerGiven() != null
+                    ? answer.getAnswerGiven() : "";
+            Double deviation = answer != null ? answer.getDeviation() : null;
+            roundDetails.add(new RoundDetailResponse(round.getRoundNumber(), round.getQuestionId(),
+                    questionText, correct, answerGiven, deviation));
+        }
 
         return new MatchDetailResponse(match.getId(), match.getMode(), match.getCreatedAt(),
                 match.getFinishedAt(), playerSummaries, roundDetails);

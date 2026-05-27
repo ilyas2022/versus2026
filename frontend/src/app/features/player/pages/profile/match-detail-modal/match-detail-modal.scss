@@ -33,6 +33,7 @@
   padding: 16px 24px;
   border-bottom: 1px solid var(--vs-border);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .vs-player-chip {
@@ -51,7 +52,9 @@
 
 .vs-modal__table-wrap {
   overflow-y: auto;
+  overflow-x: auto;
   flex: 1;
+  -webkit-overflow-scrolling: touch;
 }
 
 .vs-modal__empty {
@@ -79,4 +82,33 @@
 
 .vs-row--wrong .vs-result-icon {
   color: var(--vs-accent-red);
+}
+
+@media (max-width: 600px) {
+  .vs-modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .vs-modal {
+    max-height: 92vh;
+    border-radius: var(--vs-radius-lg) var(--vs-radius-lg) 0 0;
+  }
+
+  .vs-modal__header {
+    padding: 14px 16px 12px;
+  }
+
+  .vs-modal__players {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+
+  .vs-question-cell {
+    max-width: 160px;
+  }
+
+  .vs-col-deviation {
+    display: none;
+  }
 }

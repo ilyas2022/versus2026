@@ -86,13 +86,20 @@ public class BinaryDuelEngine implements DuelEngine {
                     lifeDelta -= 1;
                 }
             }
+            UUID optionGiven = raw == null || raw.optionId() == null ? null : UUID.fromString(raw.optionId());
+            String answerText = optionGiven == null ? null : question.getOptions().stream()
+                    .filter(o -> optionGiven.equals(o.getId()))
+                    .map(QuestionOption::getText)
+                    .findFirst()
+                    .orElse(null);
             outcomes.add(new PlayerRoundOutcome(
                     rt.getUserId(),
                     correct != null,
                     correct,
                     null,
                     null,
-                    raw == null || raw.optionId() == null ? null : UUID.fromString(raw.optionId()),
+                    optionGiven,
+                    answerText,
                     lifeDelta));
         }
 

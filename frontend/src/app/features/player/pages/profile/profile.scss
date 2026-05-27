@@ -166,6 +166,11 @@
   padding: 2px 10px;
 }
 
+.vs-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .vs-chart-card {
   padding: 16px 16px 8px;
 }
@@ -282,5 +287,6 @@
   .vs-profile__left {
     flex: none;
     width: 100%;
+    min-width: 0;
   }
 }

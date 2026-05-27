@@ -138,6 +138,7 @@ public class PrecisionDuelEngine implements DuelEngine {
                     deviation == null ? null : DeviationStats.roundToTwo(deviation),
                     value,
                     null,
+                    null,
                     lifeDelta));
         }
 

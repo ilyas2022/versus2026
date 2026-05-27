@@ -108,7 +108,8 @@ public class GameService {
         }
 
         MatchRound round = createCardRound(session.match(), cardA.getId(), cardB.getId());
-        createAnswer(round, userId, optionId.toString(), null, lifeDelta, correct);
+        Card selectedCard = optionId.equals(cardA.getId()) ? cardA : cardB;
+        createAnswer(round, userId, selectedCard.getNombre(), null, lifeDelta, correct);
 
         Map<String, Number> revealedValues = Map.of(
                 cardA.getId().toString(), cardA.getValor(),
