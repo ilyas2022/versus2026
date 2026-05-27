@@ -18,6 +18,7 @@ export class AdminReports implements OnInit {
 
   page = signal<PageResponse<AdminReport> | null>(null);
   statusFilter = signal<StatusFilter>('PENDING');
+  currentPage = signal(0);
   loading = signal(true);
 
   ngOnInit(): void {
@@ -26,13 +27,23 @@ export class AdminReports implements OnInit {
 
   setFilter(s: StatusFilter): void {
     this.statusFilter.set(s);
+    this.currentPage.set(0);
     this.load();
+  }
+
+  goToPage(p: number): void {
+    this.currentPage.set(p);
+    this.load();
+  }
+
+  get pages(): number[] {
+    return Array.from({ length: this.page()?.totalPages ?? 0 }, (_, i) => i);
   }
 
   private load(): void {
     this.loading.set(true);
     const s = this.statusFilter();
-    this.adminSvc.getReports(s || undefined).subscribe({
+    this.adminSvc.getReports(s || undefined, this.currentPage()).subscribe({
       next: (p) => {
         this.page.set(p);
         this.loading.set(false);

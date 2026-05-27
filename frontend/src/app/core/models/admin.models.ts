@@ -71,3 +71,8 @@ export interface PageResponse<T> {
   totalPages: number;
   number: number;
 }
+
+export interface ModeDistribution {
+  mode: string;
+  count: number;
+}
