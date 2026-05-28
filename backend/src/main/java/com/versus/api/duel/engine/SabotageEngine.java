@@ -78,11 +78,7 @@ public class SabotageEngine implements DuelEngine {
                 }
             }
             UUID optionGiven = raw == null || raw.optionId() == null ? null : UUID.fromString(raw.optionId());
-            String answerText = optionGiven == null ? null : question.getOptions().stream()
-                    .filter(o -> optionGiven.equals(o.getId()))
-                    .map(QuestionOption::getText)
-                    .findFirst()
-                    .orElse(null);
+            String answerText = context.optionText(optionGiven);
             outcomes.add(new PlayerRoundOutcome(
                     rt.getUserId(),
                     correct != null,
