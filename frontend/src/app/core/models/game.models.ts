@@ -20,6 +20,8 @@ export interface QuestionBinary {
   type: 'BINARY';
   text: string;
   category: string;
+  subcategory?: string | null;
+  inverse?: boolean;
   options: QuestionOption[];
   scrapedAt: string | null;
 }
@@ -29,6 +31,7 @@ export interface QuestionNumeric {
   type: 'NUMERIC';
   text: string;
   category: string;
+  subcategory?: string | null;
   unit: string | null;
   scrapedAt: string | null;
 }
@@ -123,31 +126,6 @@ export interface MatchHistoryItem {
   roundsPlayed: number;
   finishedAt: string;
   opponent: OpponentSummary | null;
-}
-
-export interface RoundDetail {
-  roundNumber: number;
-  questionId: string;
-  questionText: string;
-  correct: boolean;
-  answerGiven: string;
-  deviation: number | null;
-}
-
-export interface MatchDetail {
-  id: string;
-  mode: GameMode;
-  createdAt: string;
-  finishedAt: string;
-  players: {
-    userId: string;
-    username: string;
-    score: number;
-    livesRemaining: number;
-    bestStreakInMatch: number;
-    result: 'WIN' | 'LOSS' | 'DRAW' | 'ABANDONED' | null;
-  }[];
-  rounds: RoundDetail[];
 }
 
 export interface PagedResponse<T> {
