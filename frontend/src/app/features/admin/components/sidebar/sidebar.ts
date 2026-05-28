@@ -9,13 +9,9 @@ export type AdminNavKey =
   | 'spiders'
   | 'reports'
   | 'proposals'
-  | 'users'
-  | 'quest'
-  | 'rank'
-  | 'cfg'
-  | 'logs';
+  | 'users';
 
-const ROUTES: Partial<Record<AdminNavKey, string>> = {
+const ROUTES: Record<AdminNavKey, string> = {
   dash: '/admin/dashboard',
   spiders: '/admin/spiders',
   reports: '/admin/reports',
@@ -26,7 +22,7 @@ const ROUTES: Partial<Record<AdminNavKey, string>> = {
 interface AdminNavItem {
   key: AdminNavKey;
   label: string;
-  route: string | null;
+  route: string;
 }
 
 interface AdminNavSection {
@@ -39,6 +35,7 @@ interface AdminNavSection {
   standalone: true,
   imports: [RouterLink, RouterLinkActive, AvatarComponent],
   templateUrl: './sidebar.html',
+  styleUrl: './sidebar.scss',
 })
 export class AdminSidebarComponent {
   active = input<AdminNavKey>('dash');
@@ -72,22 +69,13 @@ export class AdminSidebarComponent {
         label: 'GESTION',
         items: [
           this.navItem('users', 'Usuarios'),
-          this.navItem('quest', 'Preguntas'),
-          this.navItem('rank', 'Rankings'),
-        ],
-      },
-      {
-        label: 'SISTEMA',
-        items: [
-          this.navItem('cfg', 'Configuracion'),
-          this.navItem('logs', 'Logs'),
         ],
       },
     ];
   }
 
   private navItem(key: AdminNavKey, label: string): AdminNavItem {
-    return { key, label, route: ROUTES[key] ?? null };
+    return { key, label, route: ROUTES[key] };
   }
 
   roleLabel(role: Role | undefined): string {
@@ -97,9 +85,5 @@ export class AdminSidebarComponent {
       PLAYER: 'Jugador',
     };
     return role ? labels[role] : '—';
-  }
-
-  initials(name: string): string {
-    return name.slice(0, 2).toUpperCase();
   }
 }

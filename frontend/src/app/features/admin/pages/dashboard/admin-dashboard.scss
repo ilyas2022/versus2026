@@ -5,51 +5,6 @@
   background: var(--vs-bg-base);
 }
 
-.vs-admin__side {
-  background: var(--vs-bg-deeper);
-  border-right: 1px solid var(--vs-border);
-  padding: 24px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.vs-admin__nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--vs-radius-sm);
-  font-size: 13px;
-  color: var(--vs-text-secondary);
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 150ms, color 150ms;
-
-  &:hover { background: rgba(255,255,255,0.04); color: var(--vs-text-primary); }
-
-  &.active {
-    background: rgba(67,97,238,0.12);
-    color: var(--vs-text-primary);
-    border-left: 2px solid var(--vs-accent-blue);
-    padding-left: 10px;
-  }
-
-  &--disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-}
-
-.vs-admin__nav-section {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--vs-text-muted);
-  text-transform: uppercase;
-  padding: 14px 12px 6px;
-}
-
 .vs-admin__main {
   padding: 28px 32px;
   display: flex;
@@ -254,15 +209,6 @@
 @media (max-width: 768px) {
   .vs-admin {
     grid-template-columns: 1fr;
-  }
-
-  .vs-admin__side {
-    border-right: none;
-    border-bottom: 1px solid var(--vs-border);
-    padding: 16px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
   }
 
   .vs-admin__main {
