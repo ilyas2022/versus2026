@@ -1,37 +1,31 @@
 <aside class="vs-admin__side">
-  <div class="vs-mark" style="padding: 0 8px 18px; border-bottom: 1px solid var(--vs-border); margin-bottom: 14px; font-size: 18px">
-    VER<span class="vs-mark__slash">/</span>SUS
+  <div class="vs-admin__brand">
+    VER<span class="vs-admin__brand__slash">/</span>SUS
   </div>
 
   @for (section of sections; track section.label) {
     <div class="vs-admin__nav-section">{{ section.label }}</div>
     @for (item of section.items; track item.key) {
-      @if (item.route) {
-        <a class="vs-admin__nav-item"
-           [routerLink]="item.route"
-           routerLinkActive="active">
-          {{ item.label }}
-        </a>
-      } @else {
-        <span class="vs-admin__nav-item vs-admin__nav-item--disabled">
-          {{ item.label }}
-        </span>
-      }
+      <a class="vs-admin__nav-item"
+         [routerLink]="item.route"
+         routerLinkActive="active">
+        {{ item.label }}
+      </a>
     }
   }
 
-  <div style="flex: 1"></div>
+  <div class="vs-admin__spacer"></div>
 
-  <div style="padding: 12px; border-top: 1px solid var(--vs-border); display: flex; align-items: center; gap: 10px">
+  <div class="vs-admin__profile">
     <vs-avatar
       [name]="auth.user()?.username ?? 'AD'"
       [avatarUrl]="auth.user()?.avatarUrl"
       [sizePx]="28"
       [fontSizePx]="11"
     />
-    <div style="flex: 1">
-      <div style="font-size: 12px; font-weight: 600">{{ auth.user()?.username ?? '—' }}</div>
-      <div style="font-size: 10px; color: var(--vs-text-muted)">{{ auth.user()?.role ?? 'ADMIN' }}</div>
+    <div class="vs-admin__profile-info">
+      <div class="vs-admin__profile-name">{{ auth.user()?.username ?? '—' }}</div>
+      <div class="vs-admin__profile-role">{{ roleLabel(auth.user()?.role) }}</div>
     </div>
   </div>
 </aside>
