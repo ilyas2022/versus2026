@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,11 +47,29 @@ public class AdminService {
     @Transactional(readOnly = true)
     public AdminUserPageResponse getUsers(int page, int size, String search, Role role, Boolean active) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        String searchParam = (search != null && !search.isBlank()) ? search : null;
-        Page<User> result = users.searchUsers(searchParam, role, active, pageable);
+        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        Page<User> result = users.findAll(userFilter(searchParam, role, active), pageable);
         List<AdminUserResponse> items = result.getContent().stream().map(this::toDto).toList();
         return new AdminUserPageResponse(items, result.getNumber(), result.getSize(),
                 result.getTotalElements(), result.getTotalPages());
+    }
+
+    private static Specification<User> userFilter(String search, Role role, Boolean active) {
+        Specification<User> spec = Specification.where(null);
+        if (search != null) {
+            String pattern = "%" + search.toLowerCase() + "%";
+            spec = spec.and((root, q, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("username")), pattern),
+                    cb.like(cb.lower(root.get("email")), pattern)
+            ));
+        }
+        if (role != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("role"), role));
+        }
+        if (active != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("isActive"), active));
+        }
+        return spec;
     }
 
     @Transactional

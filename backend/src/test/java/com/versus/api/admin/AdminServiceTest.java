@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -75,16 +76,26 @@ class AdminServiceTest {
     @Nested
     class GetUsers {
 
-        @DisplayName("Búsqueda en blanco normaliza a null en el repositorio")
+        @DisplayName("Sin filtros, llama a findAll con una Specification no-null y devuelve resultado vacío")
         @Test
-        void busquedaEnBlanco_pasaNullAlRepositorio() {
-            when(users.searchUsers(any(), any(), any(), any())).thenReturn(Page.empty());
-            ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        void sinFiltros_invocaFindAll() {
+            when(users.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+
+            AdminUserPageResponse response = adminService.getUsers(0, 20, null, null, null);
+
+            assertThat(response.items()).isEmpty();
+            assertThat(response.totalElements()).isZero();
+            verify(users).findAll(any(Specification.class), any(Pageable.class));
+        }
+
+        @DisplayName("Búsqueda en blanco no rompe (se trata como sin búsqueda)")
+        @Test
+        void busquedaEnBlanco_noRompe() {
+            when(users.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
 
             adminService.getUsers(0, 20, "   ", null, null);
 
-            verify(users).searchUsers(captor.capture(), any(), any(), any());
-            assertThat(captor.getValue()).isNull();
+            verify(users).findAll(any(Specification.class), any(Pageable.class));
         }
 
         @DisplayName("Resultado paginado se mapea correctamente al DTO")
@@ -92,7 +103,7 @@ class AdminServiceTest {
         void resultadoPaginado_seMapeaCorrectamente() {
             User u = user(TARGET_ID, "alice", Role.PLAYER);
             Page<User> page = new PageImpl<>(List.of(u));
-            when(users.searchUsers(any(), any(), any(), any())).thenReturn(page);
+            when(users.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
 
             AdminUserPageResponse response = adminService.getUsers(0, 20, null, null, null);
 
@@ -102,21 +113,21 @@ class AdminServiceTest {
             assertThat(response.items().get(0).role()).isEqualTo("PLAYER");
         }
 
-        @DisplayName("Con filtros, se pasan al repositorio correctamente")
+        @DisplayName("Con filtros, la consulta usa el Pageable con orden por createdAt descendente")
         @Test
-        void conFiltros_sePassanAlRepositorio() {
-            when(users.searchUsers(any(), any(), any(), any())).thenReturn(Page.empty());
-            ArgumentCaptor<String> searchCaptor = ArgumentCaptor.forClass(String.class);
-            ArgumentCaptor<Role> roleCaptor     = ArgumentCaptor.forClass(Role.class);
-            ArgumentCaptor<Boolean> activeCaptor = ArgumentCaptor.forClass(Boolean.class);
+        void conFiltros_pageableOrdenadoPorCreatedAt() {
+            when(users.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 
             adminService.getUsers(0, 10, "alice", Role.ADMIN, true);
 
-            verify(users).searchUsers(searchCaptor.capture(), roleCaptor.capture(),
-                    activeCaptor.capture(), any());
-            assertThat(searchCaptor.getValue()).isEqualTo("alice");
-            assertThat(roleCaptor.getValue()).isEqualTo(Role.ADMIN);
-            assertThat(activeCaptor.getValue()).isTrue();
+            verify(users).findAll(any(Specification.class), pageableCaptor.capture());
+            Pageable used = pageableCaptor.getValue();
+            assertThat(used.getPageNumber()).isZero();
+            assertThat(used.getPageSize()).isEqualTo(10);
+            assertThat(used.getSort().getOrderFor("createdAt"))
+                    .isNotNull()
+                    .satisfies(o -> assertThat(o.isDescending()).isTrue());
         }
     }
 

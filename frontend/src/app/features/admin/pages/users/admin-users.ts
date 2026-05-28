@@ -26,6 +26,9 @@ export class AdminUsers implements OnInit {
   roleFilter = signal<Role | null>(null);
   activeFilter = signal<boolean | null>(null);
 
+  loading = signal(false);
+  errorMsg = signal<string | null>(null);
+
   editingRoleId = signal<string | null>(null);
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -99,16 +102,37 @@ export class AdminUsers implements OnInit {
   }
 
   private load(): void {
+    this.loading.set(true);
+    this.errorMsg.set(null);
     this.adminService.listUsers({
       page: this.page(),
       size: this.size,
       search: this.search() || undefined,
       role: this.roleFilter() ?? undefined,
       active: this.activeFilter() ?? undefined,
-    }).subscribe(result => {
-      this.users.set(result.items);
-      this.totalElements.set(result.totalElements);
-      this.totalPages.set(result.totalPages);
+    }).subscribe({
+      next: result => {
+        this.users.set(result.items);
+        this.totalElements.set(result.totalElements);
+        this.totalPages.set(result.totalPages);
+        this.loading.set(false);
+      },
+      error: err => {
+        this.users.set([]);
+        this.totalElements.set(0);
+        this.totalPages.set(0);
+        this.loading.set(false);
+        const status = err?.status ?? 0;
+        if (status === 401) {
+          this.errorMsg.set('Sesión expirada. Vuelve a iniciar sesión.');
+        } else if (status === 403) {
+          this.errorMsg.set('No tienes permisos para ver la lista de usuarios.');
+        } else if (status === 0) {
+          this.errorMsg.set('No se puede conectar con el servidor.');
+        } else {
+          this.errorMsg.set(err?.error?.message ?? `Error ${status}: no se pudieron cargar los usuarios.`);
+        }
+      },
     });
   }
 }

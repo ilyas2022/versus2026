@@ -30,6 +30,10 @@
       <span class="vs-pill vs-pill--mute">{{ users().length }} / {{ totalElements() }}</span>
     </div>
 
+    @if (errorMsg()) {
+      <div class="vs-admin-error">{{ errorMsg() }}</div>
+    }
+
     <!-- Tabla -->
     <div class="vs-card" style="padding: 0">
       <table class="vs-table">
@@ -93,7 +97,9 @@
           @if (users().length === 0) {
             <tr>
               <td colspan="6" style="text-align: center; color: var(--vs-text-muted); padding: 24px">
-                Sin resultados.
+                @if (loading()) { Cargando usuarios… }
+                @else if (errorMsg()) { — }
+                @else { Sin resultados. }
               </td>
             </tr>
           }
